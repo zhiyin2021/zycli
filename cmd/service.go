@@ -149,7 +149,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%s
-ExecStart=%s/%s server log
+ExecStart=%s/%s server
 Restart=on-failure
  
 [Install]
