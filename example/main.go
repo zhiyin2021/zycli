@@ -54,8 +54,10 @@ func init() {
 
 func helloworld(ctx resp.Context) error {
 	if cmd.DEBUG {
+		logrus.Debugln("hello world, debug mode")
 		return ctx.String(200, "hello world, debug mode")
 	}
+	logrus.Infoln("hello world")
 	return ctx.String(200, "hello world")
 }
 func initConfig() {
