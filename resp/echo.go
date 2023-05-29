@@ -128,6 +128,29 @@ func (e *Group) POST(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo
 	return e.group.POST(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
 }
 
+func (e *Group) PUT(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.group.PUT(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+
+func (e *Group) PATCH(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.group.PATCH(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+func (e *Group) OPTIONS(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.group.OPTIONS(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+func (e *Group) DELETE(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.group.DELETE(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+func (e *Group) HEAD(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.group.HEAD(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+func (e *Group) TRACE(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.group.TRACE(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+func (e *Group) CONNECT(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.group.CONNECT(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+
 var AnonymousUrls = []string{"/api/user.login", "/api/login"}
 
 func auth(next echo.HandlerFunc) echo.HandlerFunc {
