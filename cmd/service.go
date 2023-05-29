@@ -106,9 +106,9 @@ var logCmd = &cobra.Command{
 		fname := tools.CurrentName()
 		var cc *exec.Cmd
 		if len(args) > 0 && args[0] == "cat" {
-			cc = exec.Command("cat", "status", "/var/log/"+fname+".log")
+			cc = exec.Command("cat", "status", tools.LogPath()+fname+".log")
 		} else {
-			cc = exec.Command("tail", "-f", "/var/log/"+fname+".log")
+			cc = exec.Command("tail", "-f", tools.LogPath()+fname+".log")
 		}
 		cc.Stdout = os.Stdout
 		//异步启动子进程

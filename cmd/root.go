@@ -24,7 +24,7 @@ var RootCmd = &cobra.Command{
 }
 
 func Execute() {
-	logName := "/var/log/" + tools.CurrentName() + ".log"
+	logName := tools.LogPath() + tools.CurrentName() + ".log"
 	writer, _ := rotatelogs.New(
 		logName+".%Y%m%d",                           //每天
 		rotatelogs.WithLinkName(logName),            //生成软链，指向最新日志文件
