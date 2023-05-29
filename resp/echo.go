@@ -104,6 +104,30 @@ func (e *echoext) GET(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *ech
 func (e *echoext) POST(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
 	return e.echo.POST(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
 }
+
+func (e *echoext) PUT(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.echo.PUT(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+
+func (e *echoext) PATCH(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.echo.PATCH(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+func (e *echoext) OPTIONS(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.echo.OPTIONS(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+func (e *echoext) DELETE(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.echo.DELETE(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+func (e *echoext) HEAD(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.echo.HEAD(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+func (e *echoext) TRACE(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.echo.TRACE(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+func (e *echoext) CONNECT(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+	return e.echo.CONNECT(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+}
+
 func wrapHandler(h http.Handler) HandlerFunc {
 	return func(c Context) error {
 		h.ServeHTTP(c.Response(), c.Request())
