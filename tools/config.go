@@ -1,18 +1,16 @@
 package tools
 
 import (
-	"log"
 	"os"
 )
 
 // 解析配置文件
 func LoadConfig[T any](filename string, unmarshal func([]byte, any) error) (T, error) {
+	var _config T
 	buf, err := readCfg(filename)
 	if err != nil {
-		log.Panic("readCfg", err)
+		return _config, err
 	}
-	log.Println(string(buf))
-	var _config T
 	err = unmarshal(buf, &_config)
 	return _config, err
 }
