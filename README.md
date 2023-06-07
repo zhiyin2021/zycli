@@ -1,18 +1,23 @@
 ## gocli
+
 > cmd => cobra 二次封装
-cache => 缓存类扩展
-resp => ECHO 自定义扩展
-tool => 工具类
+> cache => 缓存类扩展
+> resp => ECHO 自定义扩展
+> tool => 工具类
 
 ### step 1
+
 ```shell
 go get -u github.com/zhiyin2021/zycli
 ```
+
 ### main.go
-```golang 
+
+```golang
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -24,7 +29,6 @@ import (
 	"github.com/zhiyin2021/zycli/cmd"
 	"github.com/zhiyin2021/zycli/resp"
 	"github.com/zhiyin2021/zycli/tools"
-	"golang.org/x/net/context"
 )
 
 type Config struct {
@@ -35,16 +39,7 @@ type Config struct {
 var config Config
 
 func main() {
-	cmd.Execute()
-}
-
-// ServerCmd represents the server command
-var ServerCmd = &cobra.Command{
-	Use:   "server",
-	Short: "Start the server at the specified address",
-	Long: `Start the server at the specified address
-the address is defined in config file`,
-	Run: func(cmd *cobra.Command, args []string) {
+	cmd.Execute(func(cmd *cobra.Command, args []string) {
 		initConfig()
 		e := resp.GetEcho()
 		addr := fmt.Sprintf("0.0.0.0:%d", config.Port)
@@ -57,17 +52,15 @@ the address is defined in config file`,
 		ctx, cancel := context.WithCancel(context.Background())
 		e.Shutdown(ctx)
 		cancel()
-	},
-}
-
-func init() {
-	cmd.RootCmd.AddCommand(ServerCmd)
+	}, true)
 }
 
 func helloworld(ctx resp.Context) error {
 	if cmd.DEBUG {
+		logrus.Debugln("hello world, debug mode")
 		return ctx.String(200, "hello world, debug mode")
 	}
+	logrus.Infoln("hello world")
 	return ctx.String(200, "hello world")
 }
 func initConfig() {
@@ -81,11 +74,12 @@ func initConfig() {
 	}
 }
 
+
 ```
 
 ```shell
 #启动程序
-app server
+app
 #安装服务
 app install
 #卸载服务

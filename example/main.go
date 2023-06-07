@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"github.com/zhiyin2021/zycli/cmd"
 	"github.com/zhiyin2021/zycli/resp"
 	"github.com/zhiyin2021/zycli/tools"
-	"golang.org/x/net/context"
 )
 
 type Config struct {
@@ -23,16 +23,7 @@ type Config struct {
 var config Config
 
 func main() {
-	cmd.Execute()
-}
-
-// ServerCmd represents the server command
-var ServerCmd = &cobra.Command{
-	Use:   "server",
-	Short: "Start the server at the specified address",
-	Long: `Start the server at the specified address
-the address is defined in config file`,
-	Run: func(cmd *cobra.Command, args []string) {
+	cmd.Execute(func(cmd *cobra.Command, args []string) {
 		initConfig()
 		e := resp.GetEcho()
 		addr := fmt.Sprintf("0.0.0.0:%d", config.Port)
@@ -45,11 +36,7 @@ the address is defined in config file`,
 		ctx, cancel := context.WithCancel(context.Background())
 		e.Shutdown(ctx)
 		cancel()
-	},
-}
-
-func init() {
-	cmd.RootCmd.AddCommand(ServerCmd)
+	}, false)
 }
 
 func helloworld(ctx resp.Context) error {

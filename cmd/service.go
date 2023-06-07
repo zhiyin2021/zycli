@@ -20,7 +20,7 @@ var svcCmd = &cobra.Command{
 	Short: "backgroud service",
 	Long:  `backgroud Service`,
 	Run: func(cmd *cobra.Command, args []string) {
-		daemoCmd = exec.Command(os.Args[0], "server", "log")
+		daemoCmd = exec.Command(os.Args[0])
 		//异步启动子进程
 		err := daemoCmd.Start()
 		if err != nil {
@@ -98,24 +98,6 @@ var statusCmd = &cobra.Command{
 	},
 }
 
-var logCmd = &cobra.Command{
-	Use:   "log",
-	Short: "log",
-	Long:  `log service`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fname := tools.CurrentName()
-		var cc *exec.Cmd
-		if len(args) > 0 && args[0] == "cat" {
-			cc = exec.Command("cat", "status", tools.LogPath()+fname+".log")
-		} else {
-			cc = exec.Command("tail", "-f", tools.LogPath()+fname+".log")
-		}
-		cc.Stdout = os.Stdout
-		//异步启动子进程
-		cc.Run()
-	},
-}
-
 func run(name string, arg ...string) error {
 	daemoCmd := exec.Command(name, arg...)
 	//异步启动子进程
@@ -132,8 +114,10 @@ func ctlSvc(ctl string) error {
 	return err
 }
 
-func init() {
-	RootCmd.AddCommand(logCmd)
+// ServerCmd represents the server command
+
+func addSvc() {
+	// RootCmd.AddCommand(serverCmd)
 	RootCmd.AddCommand(svcCmd)
 	RootCmd.AddCommand(installCmd)
 	RootCmd.AddCommand(uninstallCmd)
@@ -149,7 +133,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%s
-ExecStart=%s/%s server
+ExecStart=%s/%s
 Restart=on-failure
  
 [Install]
