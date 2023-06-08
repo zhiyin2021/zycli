@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 	"github.com/zhiyin2021/zycli/cmd"
 	"github.com/zhiyin2021/zycli/resp"
 	"github.com/zhiyin2021/zycli/tools"
@@ -22,7 +21,7 @@ var config Config
 func main() {
 	cmd.Execute(run, false)
 }
-func run(ccmd *cobra.Command, args []string) {
+func run(args []string) {
 	initConfig()
 	e := resp.GetEcho()
 	addr := fmt.Sprintf("0.0.0.0:%d", config.Port)

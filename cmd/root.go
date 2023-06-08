@@ -18,7 +18,7 @@ import (
 var (
 	Version = "0.0.1"
 	DEBUG   = false
-	svcFunc func(cmd *cobra.Command, args []string)
+	svcFunc func(args []string)
 )
 var RootCmd = &cobra.Command{
 	Use:     tools.CurrentName(),
@@ -27,7 +27,7 @@ var RootCmd = &cobra.Command{
 	Version: Version,
 	Run: func(cmd *cobra.Command, args []string) {
 		if svcFunc != nil {
-			svcFunc(cmd, args)
+			svcFunc(args)
 		}
 	},
 }
@@ -40,7 +40,7 @@ func WaitQuit() <-chan os.Signal {
 
 // mainFunc 主函数
 // regSvc 是否注册服务
-func Execute(mainFunc func(cmd *cobra.Command, args []string), regSvc bool) {
+func Execute(mainFunc func(args []string), regSvc bool) {
 	logName := tools.LogPath() + tools.CurrentName() + ".log"
 	writer, _ := rotatelogs.New(
 		logName+".%Y%m%d",                           //每天
