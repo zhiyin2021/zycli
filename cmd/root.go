@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 	"time"
 
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
@@ -28,6 +30,12 @@ var RootCmd = &cobra.Command{
 			svcFunc(cmd, args)
 		}
 	},
+}
+
+func WaitQuit() <-chan os.Signal {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	return quit
 }
 
 // mainFunc 主函数
@@ -86,6 +94,11 @@ var logCmd = &cobra.Command{
 // }
 
 func init() {
+	logrus.SetFormatter(&logrus.TextFormatter{
+		ForceColors:     true,
+		FullTimestamp:   true,
+		TimestampFormat: "150405.0000", //时间格式化
+	})
 	RootCmd.PersistentFlags().BoolVar(&DEBUG, "debug", false, "start with debug mode")
 	RootCmd.AddCommand(logCmd)
 }

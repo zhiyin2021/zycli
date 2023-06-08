@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -23,22 +20,21 @@ type Config struct {
 var config Config
 
 func main() {
-	cmd.Execute(func(cmd *cobra.Command, args []string) {
-		initConfig()
-		e := resp.GetEcho()
-		addr := fmt.Sprintf("0.0.0.0:%d", config.Port)
-		logrus.Println("server start at ", addr)
-		go e.Start(addr)
-		e.GET("/", helloworld)
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		<-quit
-		ctx, cancel := context.WithCancel(context.Background())
-		e.Shutdown(ctx)
-		cancel()
-	}, false)
+	cmd.Execute(run, false)
 }
-
+func run(ccmd *cobra.Command, args []string) {
+	initConfig()
+	e := resp.GetEcho()
+	addr := fmt.Sprintf("0.0.0.0:%d", config.Port)
+	logrus.Println("server start at ", addr)
+	go e.Start(addr)
+	e.GET("/", helloworld)
+	code := <-cmd.WaitQuit()
+	logrus.Println("server stop", code)
+	ctx, cancel := context.WithCancel(context.Background())
+	e.Shutdown(ctx)
+	cancel()
+}
 func helloworld(ctx resp.Context) error {
 	if cmd.DEBUG {
 		logrus.Debugln("hello world, debug mode")
