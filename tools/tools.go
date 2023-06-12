@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 
 	"github.com/gofrs/uuid"
@@ -67,4 +68,57 @@ func GetIpList() []string {
 
 func Md5(data string) string {
 	return fmt.Sprintf("%x", md5.Sum([]byte(data)))
+}
+
+// QuickSort 快速排序,key不为空按结构体识别排序,否则按数字类型排序
+func QuickSort[T any](arr []T, key string) []T {
+	if len(arr) <= 1 {
+		return arr
+	}
+	low, high := 0, len(arr)-1
+	if key != "" {
+		f1 := reflect.ValueOf(arr[0])
+		v0 := f1.FieldByName(key).Int()
+		for i := 1; i <= high; {
+			if reflect.ValueOf(arr[i]).FieldByName(key).Int() > v0 {
+				arr[i], arr[high] = arr[high], arr[i]
+				high--
+			} else {
+				arr[i], arr[low] = arr[low], arr[i]
+				low++
+				i++
+			}
+		}
+	} else {
+		v0 := toi64(arr[0])
+		for i := 1; i <= high; {
+			if toi64(arr[i]) > v0 {
+				arr[i], arr[high] = arr[high], arr[i]
+				high--
+			} else {
+				arr[i], arr[low] = arr[low], arr[i]
+				low++
+				i++
+			}
+		}
+	}
+	QuickSort(arr[:low], key)
+	QuickSort(arr[low+1:], key)
+	return arr
+}
+
+func toi64(n interface{}) int64 {
+	switch n := n.(type) {
+	case int:
+		return int64(n)
+	case int8:
+		return int64(n)
+	case int16:
+		return int64(n)
+	case int32:
+		return int64(n)
+	case int64:
+		return n
+	}
+	return 0
 }

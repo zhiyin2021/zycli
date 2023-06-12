@@ -22,6 +22,7 @@ func main() {
 	cmd.Execute(run, false)
 }
 func run(args []string) {
+
 	initConfig()
 	e := resp.GetEcho()
 	addr := fmt.Sprintf("0.0.0.0:%d", config.Port)
