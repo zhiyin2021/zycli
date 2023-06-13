@@ -27,15 +27,46 @@ var RootCmd = &cobra.Command{
 	Version: Version,
 	Run: func(cmd *cobra.Command, args []string) {
 		if svcFunc != nil {
+			err := startUnixSock()
+			if err != nil {
+				if isErrorAddressAlreadyInUse(err) {
+					logrus.Errorf("application already running, please check.")
+					return
+				}
+				logrus.Errorln("usock", err)
+			}
+			defer stopUnixSock()
+			if !DEBUG {
+				DEBUG = tools.FileExist(tools.CurrentName() + ".dbg")
+			}
 			svcFunc(args)
 		}
 	},
 }
 
 func WaitQuit() <-chan os.Signal {
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	return quit
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	// for {
+	// 	s := <-sig
+	// 	if s == syscall.SIGUSR1 {
+	// 		DEBUG = !DEBUG
+	// 		log.Println("debug", DEBUG)
+	// 		if DEBUG {
+	// 			logrus.SetLevel(logrus.DebugLevel)
+	// 		} else {
+	// 			logrus.SetLevel(logrus.InfoLevel)
+	// 		}
+	// 	} else {
+	// 		sig <- s
+	// 		stopUnixSock()
+	// 		return sig
+	// 	}
+	// }
+	// s := <-sig
+	// stopUnixSock()
+	// sig <- s
+	return sig
 }
 
 // mainFunc 主函数
@@ -61,6 +92,7 @@ func Execute(mainFunc func(args []string), regSvc bool) {
 	if regSvc {
 		addSvc()
 	}
+
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -85,6 +117,16 @@ var logCmd = &cobra.Command{
 	},
 }
 
+var dbgCmd = &cobra.Command{
+	Use:   "dbg",
+	Short: "dbg",
+	Long:  `enabled debug`,
+	Run: func(cmd *cobra.Command, args []string) {
+		msg, err := SendMsgToIPC("dbg")
+		logrus.Info(msg, err)
+	},
+}
+
 // var serverCmd = &cobra.Command{
 // 	Use:   "server",
 // 	Short: "Start the server at the specified address",
@@ -101,4 +143,5 @@ func init() {
 	})
 	RootCmd.PersistentFlags().BoolVar(&DEBUG, "debug", false, "start with debug mode")
 	RootCmd.AddCommand(logCmd)
+	RootCmd.AddCommand(dbgCmd)
 }
