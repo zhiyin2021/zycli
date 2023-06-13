@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bufio"
-	"log"
 	"net"
 	"os"
 	"runtime"
@@ -43,7 +42,6 @@ func startUnixSock() error {
 				reader := bufio.NewReader(conn)
 				msg, _, err := reader.ReadLine()
 				if err != nil {
-					log.Println("uread err", err)
 					return
 				}
 				logrus.Println("uread:", msg)

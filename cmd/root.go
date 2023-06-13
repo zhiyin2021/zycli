@@ -27,10 +27,20 @@ var RootCmd = &cobra.Command{
 	Version: Version,
 	Run: func(cmd *cobra.Command, args []string) {
 		if svcFunc != nil {
+			logName := tools.LogPath() + tools.CurrentName() + ".log"
+			writer, _ := rotatelogs.New(
+				logName+".%Y%m%d",                           //每天
+				rotatelogs.WithLinkName(logName),            //生成软链，指向最新日志文件
+				rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
+				rotatelogs.WithRotationCount(10),            //设置10份 大于10份 或到了清理时间 开始清理
+				rotatelogs.WithRotationSize(256*1024*1024),  //设置100MB大小,当大于这个容量时，创建新的日志文件
+			)
+			mw := io.MultiWriter(os.Stdout, writer)
+			logrus.SetOutput(mw)
 			err := startUnixSock()
 			if err != nil {
 				if isErrorAddressAlreadyInUse(err) {
-					logrus.Errorf("application already running, please check.")
+					logrus.Errorf("please check application already running.")
 					return
 				}
 				logrus.Errorln("usock", err)
@@ -39,6 +49,7 @@ var RootCmd = &cobra.Command{
 			if !DEBUG {
 				DEBUG = tools.FileExist(tools.CurrentName() + ".dbg")
 			}
+
 			svcFunc(args)
 		}
 	},
@@ -72,16 +83,6 @@ func WaitQuit() <-chan os.Signal {
 // mainFunc 主函数
 // regSvc 是否注册服务
 func Execute(mainFunc func(args []string), regSvc bool) {
-	logName := tools.LogPath() + tools.CurrentName() + ".log"
-	writer, _ := rotatelogs.New(
-		logName+".%Y%m%d",                           //每天
-		rotatelogs.WithLinkName(logName),            //生成软链，指向最新日志文件
-		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
-		rotatelogs.WithRotationCount(10),            //设置10份 大于10份 或到了清理时间 开始清理
-		rotatelogs.WithRotationSize(256*1024*1024),  //设置100MB大小,当大于这个容量时，创建新的日志文件
-	)
-	mw := io.MultiWriter(os.Stdout, writer)
-	logrus.SetOutput(mw)
 	if DEBUG {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
@@ -123,7 +124,11 @@ var dbgCmd = &cobra.Command{
 	Long:  `enabled debug`,
 	Run: func(cmd *cobra.Command, args []string) {
 		msg, err := SendMsgToIPC("dbg")
-		logrus.Info(msg, err)
+		if err != nil {
+			logrus.Errorln("please check application not running.")
+		} else {
+			logrus.Infoln(msg)
+		}
 	},
 }
 
