@@ -3,9 +3,12 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime/debug"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,7 +21,7 @@ import (
 var (
 	Version = "0.0.1"
 	DEBUG   = false
-	svcFunc func(args []string)
+	svcFunc func([]string, <-chan os.Signal)
 )
 var RootCmd = &cobra.Command{
 	Use:     tools.CurrentName(),
@@ -37,52 +40,50 @@ var RootCmd = &cobra.Command{
 			)
 			mw := io.MultiWriter(os.Stdout, writer)
 			logrus.SetOutput(mw)
-			err := startUnixSock()
-			if err != nil {
-				if isErrorAddressAlreadyInUse(err) {
-					logrus.Errorf("please check application already running.")
-					return
-				}
-				logrus.Errorln("usock", err)
-			}
-			defer stopUnixSock()
 			if !DEBUG {
 				DEBUG = tools.FileExist(tools.CurrentName() + ".dbg")
 			}
+			err := startUnixSock()
+			if err != nil {
+				return
+			}
+			defer stopUnixSock()
+			quit := make(chan os.Signal)
+			sig := make(chan os.Signal)
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer func() {
+					if err := recover(); err != nil {
+						fmt.Println("panic recoverd ==> ", err)
+						fmt.Println("stack ==> ", string(debug.Stack()))
+						sig <- syscall.SIGTERM
+					}
+					wg.Done()
+				}()
+				svcFunc(args, quit)
+			}()
 
-			svcFunc(args)
+			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+			s := <-sig
+			select {
+			case quit <- s:
+				log.Println("wait quit")
+				wg.Wait()
+			case <-time.After(10 * time.Millisecond):
+				log.Println("system quit")
+			}
 		}
 	},
 }
 
-func WaitQuit() <-chan os.Signal {
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	// for {
-	// 	s := <-sig
-	// 	if s == syscall.SIGUSR1 {
-	// 		DEBUG = !DEBUG
-	// 		log.Println("debug", DEBUG)
-	// 		if DEBUG {
-	// 			logrus.SetLevel(logrus.DebugLevel)
-	// 		} else {
-	// 			logrus.SetLevel(logrus.InfoLevel)
-	// 		}
-	// 	} else {
-	// 		sig <- s
-	// 		stopUnixSock()
-	// 		return sig
-	// 	}
-	// }
-	// s := <-sig
-	// stopUnixSock()
-	// sig <- s
-	return sig
-}
+// func WaitQuit() <-chan os.Signal {
+// 	return quit
+// }
 
 // mainFunc 主函数
 // regSvc 是否注册服务
-func Execute(mainFunc func(args []string), regSvc bool) {
+func Execute(mainFunc func([]string, <-chan os.Signal), regSvc bool) {
 	if DEBUG {
 		logrus.SetLevel(logrus.DebugLevel)
 	}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"log"
 	"net"
 	"os"
 	"runtime"
@@ -19,6 +20,7 @@ var (
 )
 
 func stopUnixSock() {
+	log.Println("stop unix sock")
 	if ulistener != nil {
 		os.Remove(sock)
 	}
@@ -28,6 +30,11 @@ func startUnixSock() error {
 	var err error
 	ulistener, err = net.Listen("unix", sock)
 	if err != nil {
+		if isErrorAddressAlreadyInUse(err) {
+			logrus.Errorf("please check application already running.")
+		} else {
+			logrus.Errorln("usock", err)
+		}
 		return err
 	}
 	go func() {
