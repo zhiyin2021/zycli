@@ -21,7 +21,8 @@ import (
 var (
 	Version = "0.0.1"
 	DEBUG   = false
-	svcFunc func([]string, <-chan os.Signal)
+	svcFunc func([]string)
+	quit    = make(chan os.Signal)
 )
 var RootCmd = &cobra.Command{
 	Use:     tools.CurrentName(),
@@ -48,7 +49,6 @@ var RootCmd = &cobra.Command{
 				return
 			}
 			defer stopUnixSock()
-			quit := make(chan os.Signal)
 			sig := make(chan os.Signal)
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -61,7 +61,7 @@ var RootCmd = &cobra.Command{
 					}
 					wg.Done()
 				}()
-				svcFunc(args, quit)
+				svcFunc(args)
 			}()
 
 			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -77,13 +77,13 @@ var RootCmd = &cobra.Command{
 	},
 }
 
-// func WaitQuit() <-chan os.Signal {
-// 	return quit
-// }
+func WaitQuit() <-chan os.Signal {
+	return quit
+}
 
 // mainFunc 主函数
 // regSvc 是否注册服务
-func Execute(mainFunc func([]string, <-chan os.Signal), regSvc bool) {
+func Execute(mainFunc func([]string), regSvc bool) {
 	if DEBUG {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
