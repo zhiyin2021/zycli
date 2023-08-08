@@ -27,13 +27,17 @@ func run(args []string) {
 	e := resp.GetEcho()
 	addr := fmt.Sprintf("0.0.0.0:%d", config.Port)
 	logrus.Println("server start at ", addr)
-	go e.Start(addr)
+
 	e.GET("/", helloworld)
-	code := <-cmd.WaitQuit()
-	logrus.Println("server stop", code)
+	go e.Start(addr)
+	<-cmd.WaitQuit()
+	logrus.Println("server stop1")
 	ctx, cancel := context.WithCancel(context.Background())
+	logrus.Println("server stop2")
 	e.Shutdown(ctx)
+	logrus.Println("server stop3")
 	cancel()
+	logrus.Println("server stop4")
 }
 func helloworld(ctx resp.Context) error {
 	if cmd.DEBUG {

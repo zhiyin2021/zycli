@@ -2,9 +2,12 @@ package resp
 
 import (
 	cc "context"
+	"embed"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -74,21 +77,35 @@ func GetEcho() *echoext {
 	return _echo
 }
 
-func (e *echoext) Static(www http.FileSystem, indexFile []byte) {
-	if indexFile != nil {
+func (e *echoext) Static(wwwFS embed.FS, indexPath string) {
+	if indexPath != "" {
+		buf, _ := wwwFS.ReadFile(indexPath)
 		_echo.routeNotFound("/*", func(c echo.Context) error {
 			if strings.HasPrefix(c.Request().URL.Path, "/api") {
 				return c.JSON(200, map[string]interface{}{"code": 404, "msg": "not found"})
 			} else {
-				return c.HTMLBlob(200, indexFile)
+				return c.HTMLBlob(200, buf)
 			}
 		})
 	}
-	assetHandler := http.FileServer(www)
+	assetHandler := http.FileServer(getFS(wwwFS))
 	_echo.GET("/", wrapHandler(assetHandler))
 	_echo.GET("/assets/*", wrapHandler(http.StripPrefix("/", assetHandler)))
 }
 
+func getFS(embedFS embed.FS) http.FileSystem {
+	useOS := len(os.Args) > 1 && os.Args[1] == "live"
+	if useOS {
+		log.Print("using live mode")
+		return http.FS(os.DirFS("dist"))
+	}
+	log.Print("using embed mode")
+	fsys, err := fs.Sub(embedFS, "dist")
+	if err != nil {
+		panic(err)
+	}
+	return http.FS(fsys)
+}
 func (e *echoext) Group(path string) *Group {
 	return &Group{e.echo.Group(path)}
 }

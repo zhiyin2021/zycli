@@ -59,6 +59,9 @@ func init() {
 	goCahce = cache.NewMemory()
 }
 
+func Ctx(c echo.Context) Context {
+	return &context{Context: c, validator: validator.New()}
+}
 func (c *context) Auth() *AuthInfo {
 	return c.auth
 }

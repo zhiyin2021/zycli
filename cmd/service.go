@@ -135,6 +135,8 @@ Type=simple
 WorkingDirectory=%s
 ExecStart=%s/%s
 Restart=on-failure
- 
+LimitNOFILE=6553500 
+LimitNPROC=6553500 
+
 [Install]
 WantedBy=multi-user.target`
