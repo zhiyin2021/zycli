@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/zhiyin2021/zycli/cache"
 
@@ -60,7 +61,7 @@ func init() {
 }
 
 func Ctx(c echo.Context) Context {
-	return &context{Context: c, validator: validator.New()}
+	return c.(*context)
 }
 func (c *context) Auth() *AuthInfo {
 	return c.auth
@@ -133,5 +134,5 @@ func (cv *context) BindAndValidate(i interface{}) error {
 }
 
 func SetAuth(token string, data interface{}) {
-	goCahce.SetBySliding(token, data, 10*60)
+	goCahce.SetBySliding(token, data, 10*60*time.Second)
 }

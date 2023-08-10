@@ -25,6 +25,7 @@ var (
 	_echo   *echoext
 )
 
+type H map[string]any
 type HandlerFunc func(c Context) error
 type echoext struct {
 	echo *echo.Echo
@@ -55,14 +56,14 @@ func GetEcho() *echoext {
 					logrus.Errorf("error=>%s=>%s=>%s", err, c.Request().Method, c.Request().URL.Path)
 					if he, ok := err.(*echo.HTTPError); ok {
 						message := fmt.Sprintf("%v", he.Message)
-						return c.JSON(200, map[string]interface{}{"code": he.Code, "msg": message})
+						return c.JSON(200, H{"code": he.Code, "msg": message})
 					}
 					code := 500
 					if err.Error() == "record not found" {
 						log.Println("c.Response().Status", c.Response().Status)
 						code = 404
 					}
-					return c.JSON(200, map[string]interface{}{"code": code, "msg": err.Error()})
+					return c.JSON(200, H{"code": code, "msg": err.Error()})
 				}
 				if c.Response().Status == 404 {
 					logrus.Errorf("succ1=>%d=>%s=>%s", c.Response().Status, c.Request().Method, c.Request().URL.Path)
@@ -82,7 +83,7 @@ func (e *echoext) Static(wwwFS embed.FS, indexPath string) {
 		buf, _ := wwwFS.ReadFile(indexPath)
 		_echo.routeNotFound("/*", func(c echo.Context) error {
 			if strings.HasPrefix(c.Request().URL.Path, "/api") {
-				return c.JSON(200, map[string]interface{}{"code": 404, "msg": "not found"})
+				return c.JSON(200, H{"code": 404, "msg": "not found"})
 			} else {
 				return c.HTMLBlob(200, buf)
 			}
@@ -160,6 +161,10 @@ func (e *echoext) Shutdown(ctx cc.Context) error {
 
 type Group struct {
 	group *echo.Group
+}
+
+func (e *Group) Use(m ...echo.MiddlewareFunc) {
+	e.group.Use(m...)
 }
 
 func (e *Group) GET(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
