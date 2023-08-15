@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bufio"
-	"log"
 	"net"
 	"os"
 	"runtime"
@@ -20,7 +19,6 @@ var (
 )
 
 func stopUnixSock() {
-	log.Println("stop unix sock")
 	if ulistener != nil {
 		os.Remove(sock)
 	}

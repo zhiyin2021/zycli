@@ -69,7 +69,7 @@ func IfCall(flag bool, call func() Option) Option {
 }
 
 // 等于
-func Equal(val interface{}, fields ...string) Option {
+func Equal(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
 		if val == "" || len(fields) == 0 {
 			return db
@@ -80,7 +80,7 @@ func Equal(val interface{}, fields ...string) Option {
 }
 
 // 不等于
-func NEqual(val interface{}, fields ...string) Option {
+func NEqual(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
 		if val == "" || len(fields) == 0 {
 			return db
@@ -91,7 +91,7 @@ func NEqual(val interface{}, fields ...string) Option {
 }
 
 // 小于
-func LT(val interface{}, fields ...string) Option {
+func LT(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
 		if val == "" || len(fields) == 0 {
 			return db
@@ -102,7 +102,7 @@ func LT(val interface{}, fields ...string) Option {
 }
 
 // 大于
-func GT(val interface{}, fields ...string) Option {
+func GT(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
 		if val == "" || len(fields) == 0 {
 			return db
@@ -113,7 +113,7 @@ func GT(val interface{}, fields ...string) Option {
 }
 
 // 小于等于
-func LTE(val interface{}, fields ...string) Option {
+func LTE(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
 		if val == "" || len(fields) == 0 {
 			return db
@@ -124,7 +124,7 @@ func LTE(val interface{}, fields ...string) Option {
 }
 
 // 大于等于
-func GTE(val interface{}, fields ...string) Option {
+func GTE(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
 		if val == "" || len(fields) == 0 {
 			return db
@@ -135,7 +135,7 @@ func GTE(val interface{}, fields ...string) Option {
 }
 
 // 起始包含
-func StartWith(val interface{}, fields ...string) Option {
+func StartWith(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
 		if val == "" || len(fields) == 0 {
 			return db
@@ -147,7 +147,7 @@ func StartWith(val interface{}, fields ...string) Option {
 }
 
 // 结束包含
-func EndWith(val interface{}, fields ...string) Option {
+func EndWith(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
 		if val == "" || len(fields) == 0 {
 			return db
@@ -159,7 +159,7 @@ func EndWith(val interface{}, fields ...string) Option {
 }
 
 // 包含
-func Contains(val interface{}, fields ...string) Option {
+func Contains(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
 		if val == "" || len(fields) == 0 {
 			return db
@@ -174,8 +174,8 @@ func noneOpt() Option {
 		return db
 	}
 }
-func genKeyVal(expression string, val interface{}, fields ...string) (where string, vals []interface{}) {
-	vals = make([]interface{}, len(fields))
+func genKeyVal(expression string, val any, fields ...string) (where string, vals []any) {
+	vals = make([]any, len(fields))
 	for i, v := range fields {
 		if where != "" {
 			where += " or "
@@ -183,6 +183,21 @@ func genKeyVal(expression string, val interface{}, fields ...string) (where stri
 		where += v + expression + " ? "
 		vals[i] = val
 	}
+	return
+}
+func List[T any](options ...Option) (o []T, err error) {
+	err = GetQuery(options...).Find(&o).Error
+	return
+}
+
+func Detail[T any](options ...Option) (o T, err error) {
+	err = GetQuery(options...).First(&o).Error
+	return
+}
+
+func Add(model any) (err error) {
+	log.Println("AddByEntities", model)
+	err = GetDB().Create(model).Error
 	return
 }
 
@@ -206,53 +221,28 @@ func GetQuery(options ...Option) *gorm.DB {
 	return db
 }
 
-func (r *Repository[T]) ToList(options ...Option) (o []T) {
-	db := GetQuery(options...)
-	if err := db.Find(&o).Error; err != nil {
-		logrus.Errorln("")
-	}
+func (r *Repository[T]) ToList(options ...Option) (o []T, err error) {
+	err = GetQuery(options...).Find(&o).Error
 	return
 }
 
-func (r *Repository[T]) FindById(id int) *T {
-	var o T
-	if err := GetDB().Where("id=?", id).First(&o).Error; err != nil {
-		logrus.Errorln("FindById err", err)
-		return nil
-	}
-	return &o
-}
-
-func (r *Repository[T]) FindBy(options ...Option) *T {
-	db := GetQuery(options...)
-	var o T
-	if err := db.First(&o).Error; err != nil {
-		logrus.Errorln("FindBy err", err)
-		return nil
-	}
-	return &o
-}
-
-func (r *Repository[T]) FindByModel(model interface{}, options ...Option) error {
-	db := GetQuery(options...)
-	if err := db.First(model).Error; err != nil {
-		logrus.Errorln("FindByModel err", err)
-		return err
-	}
-	return nil
-}
-func (r *Repository[T]) AddByEntities(model interface{}) (err error) {
-	log.Println("AddByEntities", model)
-	err = GetDB().Create(model).Error
+func (r *Repository[T]) FindById(id int) (o T, err error) {
+	err = GetDB().Where("id=?", id).First(&o).Error
 	return
 }
-func (r *Repository[T]) Add(model map[string]interface{}) (err error) {
+
+func (r *Repository[T]) FindBy(options ...Option) (o T, err error) {
+	err = GetQuery(options...).First(&o).Error
+	return
+}
+
+func (r *Repository[T]) Add(model map[string]any) (err error) {
 	var m T
 	err = GetDB().Model(&m).Create(model).Error
 	return
 }
 
-func (r *Repository[T]) Update(id int, model map[string]interface{}) *gorm.DB {
+func (r *Repository[T]) Update(id int, model map[string]any) *gorm.DB {
 	var m T
 	return GetDB().Model(&m).Where("id=?", id).Updates(model)
 }

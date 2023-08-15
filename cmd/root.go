@@ -19,10 +19,10 @@ import (
 )
 
 var (
-	Version = "0.0.1"
-	DEBUG   = false
-	svcFunc func([]string)
-	quit    = make(chan os.Signal)
+	Version   = "0.0.1"
+	DEBUG     = false
+	svcFunc   func([]string)
+	quit, sig = make(chan os.Signal), make(chan os.Signal)
 )
 var RootCmd = &cobra.Command{
 	Use:     tools.CurrentName(),
@@ -49,7 +49,7 @@ var RootCmd = &cobra.Command{
 				return
 			}
 			defer stopUnixSock()
-			sig := make(chan os.Signal)
+
 			var wg sync.WaitGroup
 			wg.Add(1)
 			go func() {
@@ -64,7 +64,7 @@ var RootCmd = &cobra.Command{
 				svcFunc(args)
 			}()
 
-			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 			s := <-sig
 			select {
 			case quit <- s:
@@ -79,6 +79,9 @@ var RootCmd = &cobra.Command{
 
 func WaitQuit() <-chan os.Signal {
 	return quit
+}
+func Quit() {
+	sig <- syscall.SIGQUIT
 }
 
 // mainFunc 主函数
