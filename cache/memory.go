@@ -2,7 +2,6 @@ package cache
 
 import (
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -36,7 +35,7 @@ func (*Memory) String() string {
 	return "memory"
 }
 
-func (m *Memory) Get(key string) any {
+func (m *Memory) Get(key any) any {
 	item := m.getItem(key)
 	if item == nil {
 		return nil
@@ -48,7 +47,7 @@ func (m *Memory) Get(key string) any {
 	return item.value
 }
 
-func (m *Memory) getItem(key string) *item {
+func (m *Memory) getItem(key any) *item {
 	i, ok := m.items.Load(key)
 	if !ok {
 		return nil
@@ -58,7 +57,7 @@ func (m *Memory) getItem(key string) *item {
 }
 
 // 获取缓存时自动延时
-func (m *Memory) SetBySliding(key string, val any, expire time.Duration) {
+func (m *Memory) SetBySliding(key, val any, expire time.Duration) {
 	item := &item{
 		value:   val,
 		sliding: expire,
@@ -67,7 +66,7 @@ func (m *Memory) SetBySliding(key string, val any, expire time.Duration) {
 	m.items.Store(key, item)
 }
 
-func (m *Memory) Set(key string, val any) {
+func (m *Memory) Set(key, val any) {
 	item := &item{
 		value:   val,
 		sliding: 0,
@@ -75,7 +74,7 @@ func (m *Memory) Set(key string, val any) {
 	}
 	m.items.Store(key, item)
 }
-func (m *Memory) SetByExpire(key string, val any, expire time.Duration) {
+func (m *Memory) SetByExpire(key, val any, expire time.Duration) {
 	item := &item{
 		value:   val,
 		sliding: 0,
@@ -83,42 +82,47 @@ func (m *Memory) SetByExpire(key string, val any, expire time.Duration) {
 	}
 	m.items.Store(key, item)
 }
-func (m *Memory) afterDel(expire time.Duration, key string) *time.Timer {
+func (m *Memory) afterDel(expire time.Duration, key any) *time.Timer {
 	return time.AfterFunc(expire, func() {
 		logrus.Println("delete", key)
 		m.items.Delete(key)
 	})
 }
-func (m *Memory) Del(key string) {
+func (m *Memory) Del(key any) {
 	if t, ok := m.items.LoadAndDelete(key); ok {
 		t.(*item).timer.Stop()
 	}
 }
 
-func (m *Memory) Increase(key string) error {
+func (m *Memory) Increase(key any) error {
 	return m.calculate(key, 1)
 }
 
-func (m *Memory) Decrease(key string) error {
+func (m *Memory) Decrease(key any) error {
 	return m.calculate(key, -1)
 }
 
-func (m *Memory) calculate(key string, num int) error {
+func (m *Memory) calculate(key any, num int) error {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	item := m.getItem(key)
 	if item == nil {
 		return nil
 	}
-	var n int
-	switch item.value.(type) {
+	switch n := item.value.(type) {
 	case int:
-		n = item.value.(int)
+		item.value = n + num
+	case int8:
+		item.value = n + int8(num)
+	case int16:
+		item.value = n + int16(num)
+	case int32:
+		item.value = n + int32(num)
+	case int64:
+		item.value = n + int64(num)
 	default:
 		return fmt.Errorf("value of %s type not int", key)
 	}
-	n += num
-	item.value = strconv.Itoa(n)
 	if item.sliding > 0 {
 		item.timer.Reset(item.sliding)
 	}
