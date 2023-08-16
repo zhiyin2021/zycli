@@ -57,7 +57,7 @@ type AuthInfo struct {
 var goCahce *cache.Memory
 
 func init() {
-	goCahce = cache.NewMemory()
+	goCahce = cache.NewMemory(time.Minute * 30)
 }
 
 func Ctx(c echo.Context) Context {
