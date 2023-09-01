@@ -47,6 +47,14 @@ func (m *Memory) Get(key any) any {
 	return item.value
 }
 
+func (m *Memory) GetAndDel(key any) any {
+	if t, ok := m.items.LoadAndDelete(key); ok {
+		t.(*item).timer.Stop()
+		return t.(*item).value
+	}
+	return nil
+}
+
 func (m *Memory) getItem(key any) *item {
 	i, ok := m.items.Load(key)
 	if !ok {
@@ -84,7 +92,7 @@ func (m *Memory) SetByExpire(key, val any, expire time.Duration) {
 }
 func (m *Memory) afterDel(expire time.Duration, key any) *time.Timer {
 	return time.AfterFunc(expire, func() {
-		logrus.Println("delete", key)
+		logrus.Debugln("delete", key)
 		m.items.Delete(key)
 	})
 }

@@ -30,17 +30,8 @@ var RootCmd = &cobra.Command{
 	Long:    tools.CurrentName() + ` server.`,
 	Version: Version,
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("--------------------\n  app: %s \n  ver: %s \n--------------------\n", tools.CurrentName(), Version)
 		if svcFunc != nil {
-			logName := tools.LogPath() + tools.CurrentName() + ".log"
-			writer, _ := rotatelogs.New(
-				logName+".%Y%m%d",                           //每天
-				rotatelogs.WithLinkName(logName),            //生成软链，指向最新日志文件
-				rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
-				rotatelogs.WithRotationCount(10),            //设置10份 大于10份 或到了清理时间 开始清理
-				rotatelogs.WithRotationSize(256*1024*1024),  //设置100MB大小,当大于这个容量时，创建新的日志文件
-			)
-			mw := io.MultiWriter(os.Stdout, writer)
-			logrus.SetOutput(mw)
 			if !DEBUG {
 				DEBUG = tools.FileExist(tools.CurrentName() + ".dbg")
 			}
@@ -77,6 +68,18 @@ var RootCmd = &cobra.Command{
 	},
 }
 
+func SetLogPath(path string) {
+	logName := path + tools.CurrentName() + ".log"
+	writer, _ := rotatelogs.New(
+		logName+".%Y%m%d",                           //每天
+		rotatelogs.WithLinkName(logName),            //生成软链，指向最新日志文件
+		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
+		rotatelogs.WithRotationCount(10),            //设置10份 大于10份 或到了清理时间 开始清理
+		rotatelogs.WithRotationSize(256*1024*1024),  //设置100MB大小,当大于这个容量时，创建新的日志文件
+	)
+	mw := io.MultiWriter(os.Stdout, writer)
+	logrus.SetOutput(mw)
+}
 func WaitQuit() <-chan os.Signal {
 	return quit
 }
@@ -86,7 +89,7 @@ func Quit() {
 
 // mainFunc 主函数
 // regSvc 是否注册服务
-func Execute(mainFunc func([]string), regSvc bool) {
+func Execute(mainFunc func([]string), logPath string, regSvc bool) {
 	if DEBUG {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
@@ -97,6 +100,10 @@ func Execute(mainFunc func([]string), regSvc bool) {
 	if regSvc {
 		addSvc()
 	}
+	if logPath == "" {
+		logPath = tools.CurrentDir() + "/log/"
+	}
+	SetLogPath(logPath)
 
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

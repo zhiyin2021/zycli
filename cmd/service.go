@@ -76,6 +76,14 @@ var startCmd = &cobra.Command{
 		ctlSvc("start")
 	},
 }
+var restartCmd = &cobra.Command{
+	Use:   "restart",
+	Short: "restart",
+	Long:  `restart service`,
+	Run: func(cmd *cobra.Command, args []string) {
+		ctlSvc("restart")
+	},
+}
 
 var stopCmd = &cobra.Command{
 	Use:   "stop",
@@ -124,6 +132,7 @@ func addSvc() {
 	RootCmd.AddCommand(statusCmd)
 	RootCmd.AddCommand(startCmd)
 	RootCmd.AddCommand(stopCmd)
+	RootCmd.AddCommand(restartCmd)
 }
 
 const svcText = `[Unit]

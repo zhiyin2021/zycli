@@ -226,16 +226,15 @@ func (r *Repository[T]) ToList(options ...Option) (o []T, err error) {
 	return
 }
 
-func (r *Repository[T]) FindById(id int) (o T, err error) {
+func (r *Repository[T]) Get(id int) (o T, err error) {
 	err = GetDB().Where("id=?", id).First(&o).Error
 	return
 }
 
-func (r *Repository[T]) FindBy(options ...Option) (o T, err error) {
+func (r *Repository[T]) GetBy(options ...Option) (o T, err error) {
 	err = GetQuery(options...).First(&o).Error
 	return
 }
-
 func (r *Repository[T]) Add(model map[string]any) (err error) {
 	var m T
 	err = GetDB().Model(&m).Create(model).Error
