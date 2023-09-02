@@ -45,26 +45,26 @@ func startUnixSock() error {
 			go func(con net.Conn) {
 				defer con.Close()
 				reader := bufio.NewReader(conn)
-				msg, _, err := reader.ReadLine()
+				msg, err := reader.ReadSlice(0)
 				if err != nil {
 					return
 				}
 				logrus.Println("uread:", msg)
-				message := string(msg)
+				message := string(msg[:len(msg)-1])
 				if message == "dbg" {
 					DEBUG = !DEBUG
 					if DEBUG {
 						logrus.SetLevel(logrus.DebugLevel)
-						conn.Write([]byte("debug true\n"))
+						conn.Write([]byte("debug true\x00"))
 					} else {
 						logrus.SetLevel(logrus.InfoLevel)
 						logrus.Println("debug false")
-						conn.Write([]byte("debug false\n"))
+						conn.Write([]byte("debug false\x00"))
 					}
 					logrus.Debugln("debug =>", DEBUG)
 				} else if IPCMsg != nil {
 					rest := IPCMsg(message)
-					conn.Write([]byte(rest + "\n"))
+					conn.Write([]byte(rest + "\x00"))
 				}
 			}(conn)
 		}
@@ -78,10 +78,15 @@ func SendMsgToIPC(msg string) (string, error) {
 		return "", err
 	}
 	defer dial.Close()
-	dial.Write([]byte(msg + "\n"))
-	dial.SetDeadline(time.Now().Add(1 * time.Second))
-	reader := bufio.NewReader(dial)
-	buf, _, err := reader.ReadLine()
+	dial.Write([]byte(msg + "\x00"))
+	dial.SetDeadline(time.Now().Add(5 * time.Second))
+
+	reader := bufio.NewReaderSize(dial, 20480)
+
+	buf, err := reader.ReadSlice(0)
+	if len(buf) > 0 {
+		buf = buf[:len(buf)-1]
+	}
 	return string(buf), err
 }
 func isErrorAddressAlreadyInUse(err error) bool {

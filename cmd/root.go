@@ -141,7 +141,9 @@ var dbgCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		msg, err := SendMsgToIPC("dbg")
 		if err != nil {
-			logrus.Errorln("please check application not running.")
+			if err.Error() != "EOF" {
+				logrus.Errorln("please check application not running:", err)
+			}
 		} else {
 			logrus.Infoln(msg)
 		}
