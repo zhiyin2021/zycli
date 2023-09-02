@@ -70,11 +70,12 @@ var RootCmd = &cobra.Command{
 
 func SetLogPath(path string) {
 	logName := path + tools.CurrentName() + ".log"
+	os.Setenv("ZYCLI_"+tools.CurrentName()+"_LOG", logName)
 	writer, _ := rotatelogs.New(
 		logName+".%Y%m%d",                           //每天
 		rotatelogs.WithLinkName(logName),            //生成软链，指向最新日志文件
 		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
-		rotatelogs.WithRotationCount(10),            //设置10份 大于10份 或到了清理时间 开始清理
+		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
 		rotatelogs.WithRotationSize(256*1024*1024),  //设置100MB大小,当大于这个容量时，创建新的日志文件
 	)
 	mw := io.MultiWriter(os.Stdout, writer)
@@ -116,12 +117,16 @@ var logCmd = &cobra.Command{
 	Short: "log",
 	Long:  `log service`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fname := tools.CurrentName()
+		logName := os.Getenv("ZYCLI_" + tools.CurrentName() + "_LOG")
 		var cc *exec.Cmd
-		if len(args) > 0 && args[0] == "cat" {
-			cc = exec.Command("cat", "status", tools.LogPath()+fname+".log")
+		c := ""
+		if len(args) > 0 {
+			c = args[0]
+		}
+		if c == "cat" {
+			cc = exec.Command("cat", logName)
 		} else {
-			cc = exec.Command("tail", "-f", tools.LogPath()+fname+".log")
+			cc = exec.Command("tail", "-f", logName)
 		}
 		cc.Stdout = os.Stdout
 		//异步启动子进程

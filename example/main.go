@@ -19,7 +19,7 @@ type Config struct {
 var config Config
 
 func main() {
-	cmd.Execute(run, false)
+	cmd.Execute(run, "", false)
 }
 func run(args []string) {
 
