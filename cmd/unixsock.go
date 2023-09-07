@@ -73,7 +73,8 @@ func startUnixSock() error {
 }
 
 func SendMsgToIPC(msg string) (string, error) {
-	dial, err := net.Dial("unix", sock)
+	d := tools.CurrentDir()
+	dial, err := net.Dial("unix", d+"/"+sock)
 	if err != nil {
 		return "", err
 	}

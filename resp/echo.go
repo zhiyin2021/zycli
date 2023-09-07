@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -84,6 +85,8 @@ func (e *echoext) Static(wwwFS embed.FS, indexPath string) {
 		_echo.routeNotFound("/*", func(c echo.Context) error {
 			if strings.HasPrefix(c.Request().URL.Path, "/api") {
 				return c.JSON(200, H{"code": 404, "msg": "not found"})
+			} else if ok, _ := regexp.MatchString(`/.*/`, c.Request().URL.Path); ok {
+				return nil
 			} else {
 				return c.HTMLBlob(200, buf)
 			}
