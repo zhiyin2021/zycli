@@ -144,6 +144,7 @@ Type=simple
 WorkingDirectory=%s
 ExecStart=%s/%s
 Restart=on-failure
+RestartSec=10
 LimitNOFILE=6553500 
 LimitNPROC=6553500 
 

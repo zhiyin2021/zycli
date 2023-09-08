@@ -16,6 +16,18 @@ var (
 )
 
 // 获取当前执行程序所在的绝对路径
+func FixPath(f string) string {
+	pathOnce.Do(func() {
+		exePath, err := os.Executable()
+		if err != nil {
+			log.Fatal(err)
+		}
+		curPath, _ = filepath.EvalSymlinks(filepath.Dir(exePath))
+	})
+	return curPath + "/" + f
+}
+
+// 获取当前执行程序所在的绝对路径
 func CurrentDir() string {
 	pathOnce.Do(func() {
 		exePath, err := os.Executable()

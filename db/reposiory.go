@@ -31,6 +31,11 @@ func WithPage(pageIndex int, pageSize int) Option {
 		return db.Offset((pageIndex - 1) * pageSize).Limit(pageSize)
 	}
 }
+func WithOrder(order string) Option {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Order(order)
+	}
+}
 
 func WithID(id int) Option {
 	if id > -1 {
@@ -212,6 +217,17 @@ func (r *Repository[T]) Log() *logrus.Entry {
 	})
 	return r.log //.Debug()
 }
+func (r *Repository[T]) ToPageList(page, limit int, options ...Option) (o []*T, total int64, err error) {
+	qry := GetQuery(options...)
+	var obj T
+	qry.Model(&obj).Count(&total)
+	if page < 1 {
+		page = 1
+	}
+	page--
+	err = qry.Offset(page * limit).Limit(limit).Find(&o).Error
+	return
+}
 
 func GetQuery(options ...Option) *gorm.DB {
 	db := GetDB()
@@ -221,7 +237,7 @@ func GetQuery(options ...Option) *gorm.DB {
 	return db
 }
 
-func (r *Repository[T]) ToList(options ...Option) (o []T, err error) {
+func (r *Repository[T]) ToList(options ...Option) (o []*T, err error) {
 	err = GetQuery(options...).Find(&o).Error
 	return
 }
@@ -249,6 +265,10 @@ func (r *Repository[T]) Update(id int, model map[string]any) *gorm.DB {
 func (r *Repository[T]) Delete(id int) error {
 	var m T
 	return GetDB().Delete(&m, "id=?", id).Error
+}
+func (r *Repository[T]) DeleteBy(options ...Option) error {
+	var m T
+	return GetQuery(options...).Delete(&m).Error
 }
 
 func (r *Repository[T]) Count(options ...Option) (total int64) {

@@ -23,10 +23,20 @@ func stopUnixSock() {
 		os.Remove(sock)
 	}
 }
+func IsRuning() bool {
+	p := tools.FixPath(sock)
+	dial, err := net.Dial("unix", p)
+	if err == nil {
+		dial.Close()
+	} else {
+		os.Remove(p)
+	}
+	return err == nil
+}
 func startUnixSock() error {
 	// addr, _ := net.ResolveUnixAddr("unix", sock)
 	var err error
-	ulistener, err = net.Listen("unix", sock)
+	ulistener, err = net.Listen("unix", tools.FixPath(sock))
 	if err != nil {
 		if isErrorAddressAlreadyInUse(err) {
 			logrus.Errorf("please check application already running.")
@@ -73,8 +83,7 @@ func startUnixSock() error {
 }
 
 func SendMsgToIPC(msg string) (string, error) {
-	d := tools.CurrentDir()
-	dial, err := net.Dial("unix", d+"/"+sock)
+	dial, err := net.Dial("unix", tools.FixPath(sock))
 	if err != nil {
 		return "", err
 	}

@@ -133,6 +133,6 @@ func (cv *context) BindAndValidate(i interface{}) error {
 	return nil
 }
 
-func SetAuth(token string, data interface{}) {
-	goCahce.SetBySliding(token, data, 10*60*time.Second)
+func SetAuth(token string, data interface{}, exp time.Duration) {
+	goCahce.SetBySliding(token, data, exp)
 }

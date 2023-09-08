@@ -35,6 +35,10 @@ var RootCmd = &cobra.Command{
 			if !DEBUG {
 				DEBUG = tools.FileExist(tools.CurrentName() + ".dbg")
 			}
+			if IsRuning() {
+				fmt.Println("already running")
+				return
+			}
 			err := startUnixSock()
 			if err != nil {
 				return
