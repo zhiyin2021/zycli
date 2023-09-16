@@ -19,10 +19,9 @@ type Config struct {
 var config Config
 
 func main() {
-	cmd.Execute(run, "", false)
+	cmd.Execute(run)
 }
 func run(args []string) {
-
 	initConfig()
 	e := resp.GetEcho()
 	addr := fmt.Sprintf("0.0.0.0:%d", config.Port)

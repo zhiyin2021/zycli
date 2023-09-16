@@ -18,11 +18,20 @@ import (
 	"github.com/zhiyin2021/zycli/tools"
 )
 
+type cmdOpt struct {
+	regSvc  bool
+	logPath string
+	ipcPath string
+}
+
+type Option func(*cmdOpt)
+
 var (
 	Version   = "0.0.1"
 	DEBUG     = false
 	svcFunc   func([]string)
 	quit, sig = make(chan os.Signal), make(chan os.Signal)
+	defOpt    = &cmdOpt{regSvc: false, logPath: tools.CurrentDir() + "/log/", ipcPath: tools.FixPath(tools.CurrentName() + ".ipc")}
 )
 var RootCmd = &cobra.Command{
 	Use:     tools.CurrentName(),
@@ -48,14 +57,10 @@ var RootCmd = &cobra.Command{
 			var wg sync.WaitGroup
 			wg.Add(1)
 			go func() {
-				defer func() {
-					if err := recover(); err != nil {
-						fmt.Println("panic recoverd ==> ", err)
-						fmt.Println("stack ==> ", string(debug.Stack()))
-						sig <- syscall.SIGTERM
-					}
+				defer OnPanic(func(a any, s string) {
+					sig <- syscall.SIGTERM
 					wg.Done()
-				}()
+				})
 				svcFunc(args)
 			}()
 
@@ -72,6 +77,23 @@ var RootCmd = &cobra.Command{
 	},
 }
 
+func WithLogPath(path string) Option {
+	return func(opt *cmdOpt) {
+		opt.logPath = path
+	}
+}
+
+func WithRegSvc(reged bool) Option {
+	return func(opt *cmdOpt) {
+		opt.regSvc = reged
+	}
+}
+
+func WithIpcPath(ipcPath string) Option {
+	return func(opt *cmdOpt) {
+		opt.ipcPath = ipcPath
+	}
+}
 func SetLogPath(path string) {
 	logName := path + tools.CurrentName() + ".log"
 	os.Setenv("ZYCLI_"+tools.CurrentName()+"_LOG", logName)
@@ -84,6 +106,17 @@ func SetLogPath(path string) {
 	)
 	mw := io.MultiWriter(os.Stdout, writer)
 	logrus.SetOutput(mw)
+
+	logName = path + tools.CurrentName() + ".err"
+	writer, _ = rotatelogs.New(
+		logName+".%Y%m%d",                           //每天
+		rotatelogs.WithLinkName(logName),            //生成软链，指向最新日志文件
+		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
+		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
+		rotatelogs.WithRotationSize(256*1024*1024),  //设置100MB大小,当大于这个容量时，创建新的日志文件
+	)
+	mw = io.MultiWriter(os.Stdout, writer)
+	errLog.SetOutput(mw)
 }
 func WaitQuit() <-chan os.Signal {
 	return quit
@@ -94,21 +127,21 @@ func Quit() {
 
 // mainFunc 主函数
 // regSvc 是否注册服务
-func Execute(mainFunc func([]string), logPath string, regSvc bool) {
+func Execute(mainFunc func([]string), opts ...Option) {
 	if DEBUG {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 	if mainFunc == nil {
 		panic("MainFunc is nil")
 	}
+	for _, opt := range opts {
+		opt(defOpt)
+	}
 	svcFunc = mainFunc
-	if regSvc {
+	if defOpt.regSvc {
 		addSvc()
 	}
-	if logPath == "" {
-		logPath = tools.CurrentDir() + "/log/"
-	}
-	SetLogPath(logPath)
+	SetLogPath(defOpt.logPath)
 
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -163,12 +196,26 @@ var dbgCmd = &cobra.Command{
 // }
 
 func init() {
-	logrus.SetFormatter(&logrus.TextFormatter{
+	logFmt := &logrus.TextFormatter{
 		ForceColors:     true,
 		FullTimestamp:   true,
 		TimestampFormat: "150405.0000", //时间格式化
-	})
+	}
+	logrus.SetFormatter(logFmt)
+	errLog.SetFormatter(logFmt)
 	RootCmd.PersistentFlags().BoolVar(&DEBUG, "debug", false, "start with debug mode")
 	RootCmd.AddCommand(logCmd)
 	RootCmd.AddCommand(dbgCmd)
+}
+
+var errLog = logrus.New()
+
+func OnPanic(call func(any, string)) {
+	if err := recover(); err != nil {
+		stack := string(debug.Stack())
+		errLog.Errorln(err, "\n", stack)
+		if call != nil {
+			call(err, stack)
+		}
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -24,7 +25,10 @@ func FixPath(f string) string {
 		}
 		curPath, _ = filepath.EvalSymlinks(filepath.Dir(exePath))
 	})
-	return curPath + "/" + f
+	if !strings.Contains(f, "/") {
+		return curPath + "/" + f
+	}
+	return f
 }
 
 // 获取当前执行程序所在的绝对路径

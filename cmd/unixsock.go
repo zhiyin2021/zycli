@@ -13,18 +13,18 @@ import (
 )
 
 var (
-	IPCMsg    func(msg string) string
-	sock      = tools.CurrentName() + ".ipc"
+	IPCMsg func(msg string) string
+	// sock      = tools.CurrentName() + ".ipc"
 	ulistener net.Listener
 )
 
 func stopUnixSock() {
 	if ulistener != nil {
-		os.Remove(sock)
+		os.Remove(defOpt.ipcPath)
 	}
 }
 func IsRuning() bool {
-	p := tools.FixPath(sock)
+	p := tools.FixPath(defOpt.ipcPath)
 	dial, err := net.Dial("unix", p)
 	if err == nil {
 		dial.Close()
@@ -36,7 +36,7 @@ func IsRuning() bool {
 func startUnixSock() error {
 	// addr, _ := net.ResolveUnixAddr("unix", sock)
 	var err error
-	ulistener, err = net.Listen("unix", tools.FixPath(sock))
+	ulistener, err = net.Listen("unix", defOpt.ipcPath)
 	if err != nil {
 		if isErrorAddressAlreadyInUse(err) {
 			logrus.Errorf("please check application already running.")
@@ -46,6 +46,7 @@ func startUnixSock() error {
 		return err
 	}
 	go func() {
+		defer OnPanic(nil)
 		defer ulistener.Close()
 		for {
 			conn, err := ulistener.Accept()
@@ -83,7 +84,8 @@ func startUnixSock() error {
 }
 
 func SendMsgToIPC(msg string) (string, error) {
-	dial, err := net.Dial("unix", tools.FixPath(sock))
+	defer OnPanic(nil)
+	dial, err := net.Dial("unix", defOpt.ipcPath)
 	if err != nil {
 		return "", err
 	}
@@ -91,7 +93,7 @@ func SendMsgToIPC(msg string) (string, error) {
 	dial.Write([]byte(msg + "\x00"))
 	dial.SetDeadline(time.Now().Add(5 * time.Second))
 
-	reader := bufio.NewReaderSize(dial, 20480)
+	reader := bufio.NewReaderSize(dial, 1024*1024)
 
 	buf, err := reader.ReadSlice(0)
 	if len(buf) > 0 {
