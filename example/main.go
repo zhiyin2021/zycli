@@ -29,7 +29,6 @@ func run(args []string) {
 
 	e.GET("/", helloworld)
 	go e.Start(addr)
-	<-cmd.WaitQuit()
 	logrus.Println("server stop1")
 	ctx, cancel := context.WithCancel(context.Background())
 	logrus.Println("server stop2")

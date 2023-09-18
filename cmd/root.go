@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"os/signal"
 	"runtime/debug"
 	"sync"
@@ -149,28 +148,6 @@ func Execute(mainFunc func([]string), opts ...Option) {
 	}
 }
 
-var logCmd = &cobra.Command{
-	Use:   "log",
-	Short: "log",
-	Long:  `log service`,
-	Run: func(cmd *cobra.Command, args []string) {
-		logName := os.Getenv("ZYCLI_" + tools.CurrentName() + "_LOG")
-		var cc *exec.Cmd
-		c := ""
-		if len(args) > 0 {
-			c = args[0]
-		}
-		if c == "cat" {
-			cc = exec.Command("cat", logName)
-		} else {
-			cc = exec.Command("tail", "-f", logName)
-		}
-		cc.Stdout = os.Stdout
-		//异步启动子进程
-		cc.Run()
-	},
-}
-
 var dbgCmd = &cobra.Command{
 	Use:   "dbg",
 	Short: "dbg",
@@ -187,14 +164,6 @@ var dbgCmd = &cobra.Command{
 	},
 }
 
-// var serverCmd = &cobra.Command{
-// 	Use:   "server",
-// 	Short: "Start the server at the specified address",
-// 	Long: `Start the server at the specified address
-// the address is defined in config file`,
-// 	Run: svcFunc,
-// }
-
 func init() {
 	logFmt := &logrus.TextFormatter{
 		ForceColors:     true,
@@ -204,8 +173,9 @@ func init() {
 	logrus.SetFormatter(logFmt)
 	errLog.SetFormatter(logFmt)
 	RootCmd.PersistentFlags().BoolVar(&DEBUG, "debug", false, "start with debug mode")
-	RootCmd.AddCommand(logCmd)
+
 	RootCmd.AddCommand(dbgCmd)
+
 }
 
 var errLog = logrus.New()
