@@ -58,8 +58,8 @@ var RootCmd = &cobra.Command{
 			go func() {
 				defer OnPanic(func(a any, s string) {
 					sig <- syscall.SIGTERM
-					wg.Done()
 				})
+				defer wg.Done()
 				svcFunc(args)
 			}()
 
@@ -95,7 +95,6 @@ func WithIpcPath(ipcPath string) Option {
 }
 func SetLogPath(path string) {
 	logName := path + tools.CurrentName() + ".log"
-	os.Setenv("ZYCLI_"+tools.CurrentName()+"_LOG", logName)
 	writer, _ := rotatelogs.New(
 		logName+".%Y%m%d",                           //每天
 		rotatelogs.WithLinkName(logName),            //生成软链，指向最新日志文件
@@ -135,6 +134,9 @@ func Execute(mainFunc func([]string), opts ...Option) {
 	}
 	for _, opt := range opts {
 		opt(defOpt)
+	}
+	if defOpt.logPath == "" {
+		defOpt.logPath = tools.CurrentDir() + "/log/"
 	}
 	svcFunc = mainFunc
 	if defOpt.regSvc {

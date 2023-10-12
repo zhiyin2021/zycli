@@ -242,14 +242,16 @@ func (r *Repository[T]) ToList(options ...Option) (o []*T, err error) {
 	return
 }
 
-func (r *Repository[T]) Get(id int) (o T, err error) {
-	err = GetDB().Where("id=?", id).First(&o).Error
-	return
+func (r *Repository[T]) Get(id int) (*T, error) {
+	var o T
+	err := GetDB().Where("id=?", id).First(&o).Error
+	return &o, err
 }
 
-func (r *Repository[T]) GetBy(options ...Option) (o T, err error) {
-	err = GetQuery(options...).First(&o).Error
-	return
+func (r *Repository[T]) GetBy(options ...Option) (*T, error) {
+	var o T
+	err := GetQuery(options...).First(&o).Error
+	return &o, err
 }
 func (r *Repository[T]) Add(model map[string]any) (err error) {
 	var m T
@@ -257,9 +259,9 @@ func (r *Repository[T]) Add(model map[string]any) (err error) {
 	return
 }
 
-func (r *Repository[T]) Update(id int, model map[string]any) *gorm.DB {
+func (r *Repository[T]) Update(id int, model map[string]any) error {
 	var m T
-	return GetDB().Model(&m).Where("id=?", id).Updates(model)
+	return GetDB().Model(&m).Where("id=?", id).Updates(model).Error
 }
 
 func (r *Repository[T]) Delete(id int) error {

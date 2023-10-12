@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 
 	"github.com/spf13/cobra"
 	"github.com/zhiyin2021/zycli/tools"
@@ -58,19 +57,17 @@ var lsLogCmd = &cobra.Command{
 	Short: "ls",
 	Long:  `ls log `,
 	Run: func(cmd *cobra.Command, args []string) {
-		if logPath := getLogPath(args); logPath != "" {
-			logPath = path.Dir(logPath)
-			cc := exec.Command("ls", "-lah", logPath)
-			cc.Stdout = os.Stdout
-			cc.Stdin = os.Stdin
-			//异步启动子进程
-			cc.Run()
-		}
+		fmt.Println("log path:", defOpt.logPath)
+		cc := exec.Command("ls", "-lah", defOpt.logPath)
+		cc.Stdout = os.Stdout
+		cc.Stdin = os.Stdin
+		//异步启动子进程
+		cc.Run()
 	},
 }
 
 func getLogPath(args []string) string {
-	logName := os.Getenv("ZYCLI_" + tools.CurrentName() + "_LOG")
+	logName := defOpt.logPath + tools.CurrentName() + ".log"
 	if len(args) > 0 {
 		if len(args[0]) == 8 {
 			logName += "." + args[0]
