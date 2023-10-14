@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"log"
+	"reflect"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -38,37 +39,16 @@ func WithOrder(order string) Option {
 }
 
 func WithID(id int) Option {
-	if id > -1 {
+	if id > 0 {
 		return Equal(id, "id")
 	}
 	return noneOpt()
 }
 
-func WithStatus(status int) Option {
-	if status > -1 {
-		return Equal(status, "status")
-	}
-	return noneOpt()
-}
-
-func WithUserId(userId int) Option {
-	if userId > 0 {
-		return Equal(userId, "userId")
-	}
-	return noneOpt()
-}
-
-func WithPreId(preId string) Option {
-	if preId != "" {
-		return StartWith(preId, "preId")
-	}
-	return noneOpt()
-}
-
 // 等于
-func IfCall(flag bool, call func() Option) Option {
+func IfCall(flag bool, call Option) Option {
 	if flag {
-		return call()
+		return call
 	}
 	return noneOpt()
 }
@@ -76,10 +56,21 @@ func IfCall(flag bool, call func() Option) Option {
 // 等于
 func Equal(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
-		if val == "" || len(fields) == 0 {
+		if !checkParam(val, fields...) {
 			return db
 		}
 		f, v := genKeyVal("=", val, fields...)
+		return db.Where(f, v...)
+	}
+}
+func Between(val1, val2 any, fields ...string) Option {
+	return func(db *gorm.DB) *gorm.DB {
+		if val1 == "" || val2 == "" || len(fields) == 0 {
+			return db
+		}
+		f, v := genKeyVal("between", val1, fields...)
+		f += " and ? "
+		v = append(v, val2)
 		return db.Where(f, v...)
 	}
 }
@@ -87,18 +78,43 @@ func Equal(val any, fields ...string) Option {
 // 不等于
 func NEqual(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
-		if val == "" || len(fields) == 0 {
+		if !checkParam(val, fields...) {
 			return db
 		}
 		f, v := genKeyVal("!=", val, fields...)
 		return db.Where(f, v...)
 	}
 }
+func checkParam(val any, fields ...string) bool {
+	if len(fields) == 0 {
+		return false
+	}
+	ele := reflect.ValueOf(val)
+	switch v := val.(type) {
+	case string:
+		if v == "" {
+			return false
+		}
+	case int, int32, int64, int8, int16:
+		if ele.Int() < 0 {
+			return false
+		}
+	case uint, uint8, uint16, uint32, uint64:
+		if ele.Uint() == 0 {
+			return false
+		}
+	case float32, float64:
+		if ele.Float() < 0 {
+			return false
+		}
+	}
+	return true
+}
 
 // 小于
 func LT(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
-		if val == "" || len(fields) == 0 {
+		if !checkParam(val, fields...) {
 			return db
 		}
 		f, v := genKeyVal("<", val, fields...)
@@ -109,7 +125,7 @@ func LT(val any, fields ...string) Option {
 // 大于
 func GT(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
-		if val == "" || len(fields) == 0 {
+		if !checkParam(val, fields...) {
 			return db
 		}
 		f, v := genKeyVal(">", val, fields...)
@@ -120,7 +136,7 @@ func GT(val any, fields ...string) Option {
 // 小于等于
 func LTE(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
-		if val == "" || len(fields) == 0 {
+		if !checkParam(val, fields...) {
 			return db
 		}
 		f, v := genKeyVal("<=", val, fields...)
@@ -131,7 +147,7 @@ func LTE(val any, fields ...string) Option {
 // 大于等于
 func GTE(val any, fields ...string) Option {
 	return func(db *gorm.DB) *gorm.DB {
-		if val == "" || len(fields) == 0 {
+		if !checkParam(val, fields...) {
 			return db
 		}
 		f, v := genKeyVal(">=", val, fields...)
