@@ -194,6 +194,17 @@ func ToList[T any](options ...Option) (o []*T, err error) {
 	err = GetQuery(options...).Find(&o).Error
 	return
 }
+func ToPageList[T any](page, limit int, options ...Option) (o []*T, total int64, err error) {
+	qry := GetQuery(options...)
+	var obj T
+	qry.Model(&obj).Count(&total)
+	if page < 1 {
+		page = 1
+	}
+	page--
+	err = qry.Offset(page * limit).Limit(limit).Find(&o).Error
+	return
+}
 
 func Get[T any](options ...Option) (*T, error) {
 	var o T
@@ -219,15 +230,7 @@ func (r *Repository[T]) Log() *logrus.Entry {
 	return r.log //.Debug()
 }
 func (r *Repository[T]) ToPageList(page, limit int, options ...Option) (o []*T, total int64, err error) {
-	qry := GetQuery(options...)
-	var obj T
-	qry.Model(&obj).Count(&total)
-	if page < 1 {
-		page = 1
-	}
-	page--
-	err = qry.Offset(page * limit).Limit(limit).Find(&o).Error
-	return
+	return ToPageList[T](page, limit, options...)
 }
 
 func GetQuery(options ...Option) *gorm.DB {
@@ -239,8 +242,7 @@ func GetQuery(options ...Option) *gorm.DB {
 }
 
 func (r *Repository[T]) ToList(options ...Option) (o []*T, err error) {
-	err = GetQuery(options...).Find(&o).Error
-	return
+	return ToList[T](options...)
 }
 
 func (r *Repository[T]) Get(id int) (*T, error) {
@@ -250,9 +252,7 @@ func (r *Repository[T]) Get(id int) (*T, error) {
 }
 
 func (r *Repository[T]) GetBy(options ...Option) (*T, error) {
-	var o T
-	err := GetQuery(options...).First(&o).Error
-	return &o, err
+	return Get[T](options...)
 }
 func (r *Repository[T]) Add(model *T) (err error) {
 	err = GetDB().Create(model).Error
