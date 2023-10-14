@@ -190,14 +190,15 @@ func genKeyVal(expression string, val any, fields ...string) (where string, vals
 	}
 	return
 }
-func List[T any](options ...Option) (o []T, err error) {
+func ToList[T any](options ...Option) (o []*T, err error) {
 	err = GetQuery(options...).Find(&o).Error
 	return
 }
 
-func Detail[T any](options ...Option) (o T, err error) {
-	err = GetQuery(options...).First(&o).Error
-	return
+func Get[T any](options ...Option) (*T, error) {
+	var o T
+	err := GetQuery(options...).First(&o).Error
+	return &o, err
 }
 
 func Add(model any) (err error) {
@@ -253,12 +254,16 @@ func (r *Repository[T]) GetBy(options ...Option) (*T, error) {
 	err := GetQuery(options...).First(&o).Error
 	return &o, err
 }
-func (r *Repository[T]) Add(model map[string]any) (err error) {
+func (r *Repository[T]) Add(model *T) (err error) {
+	err = GetDB().Create(model).Error
+	return
+}
+
+func (r *Repository[T]) AddMap(model map[string]any) (err error) {
 	var m T
 	err = GetDB().Model(&m).Create(model).Error
 	return
 }
-
 func (r *Repository[T]) Update(id int, model map[string]any) error {
 	var m T
 	return GetDB().Model(&m).Where("id=?", id).Updates(model).Error
