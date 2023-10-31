@@ -68,8 +68,8 @@ func Between(val1, val2 any, fields ...string) Option {
 		if val1 == "" || val2 == "" || len(fields) == 0 {
 			return db
 		}
-		f, v := genKeyVal("between", val1, fields...)
-		f += " and ? "
+		f, v := genKeyVal(" between ", val1, fields...)
+		f += " and ?"
 		v = append(v, val2)
 		return db.Where(f, v...)
 	}
@@ -162,7 +162,7 @@ func StartWith(val any, fields ...string) Option {
 			return db
 		}
 		vv := fmt.Sprintf("%v%s", val, "%")
-		f, v := genKeyVal("like", vv, fields...)
+		f, v := genKeyVal(" like", vv, fields...)
 		return db.Where(f, v...)
 	}
 }
@@ -199,13 +199,20 @@ func genKeyVal(expression string, val any, fields ...string) (where string, vals
 	vals = make([]any, len(fields))
 	for i, v := range fields {
 		if where != "" {
-			where += " or "
+			where += " or"
 		}
-		where += v + expression + " ? "
+		where += v + expression + "?"
 		vals[i] = val
 	}
 	return
 }
+func Count[T any](options ...Option) (total int64) {
+	db := GetQuery(options...)
+	var s T
+	db.Model(&s).Count(&total)
+	return
+}
+
 func ToList[T any](options ...Option) (o []*T, err error) {
 	err = GetQuery(options...).Find(&o).Error
 	return

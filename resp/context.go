@@ -22,7 +22,7 @@ type Result struct {
 
 type Context interface {
 	echo.Context
-	Auth() *AuthInfo
+	Auth() any
 	PageOK(data interface{}, total int64) error
 	Ok(data interface{}) error
 	ParamErr(msg string, a ...any) error
@@ -41,30 +41,31 @@ type Context interface {
 
 type context struct {
 	echo.Context
-	auth      *AuthInfo
+	auth      any
 	validator *validator.Validate
 }
-type AuthInfo struct {
-	Id    int    `json:"id"`
-	Uid   string `json:"uid"`
-	Name  string `json:"name"`
-	Role  int    `json:"role"`
-	PreId string `json:"-"`
-	F1    bool   `json:"f1"` //HasFee
-	F2    int    `json:"f2"` //FeeLimit
-}
 
-var goCahce *cache.Memory
-
-func init() {
-	goCahce = cache.NewMemory(time.Minute * 30)
-}
+var (
+	Session  = cache.NewMemory(time.Minute * 30)
+	TokenKey = "Authorization"
+)
 
 func Ctx(c echo.Context) Context {
 	return c.(*context)
 }
-func (c *context) Auth() *AuthInfo {
+func (c *context) Auth() any {
+	if c.auth == nil {
+		token := c.Token()
+		if token != "" {
+			if item := Session.Get(token); item != nil {
+				c.auth = item
+			}
+		}
+	}
 	return c.auth
+}
+func (c *context) Token() string {
+	return c.Request().Header.Get(TokenKey)
 }
 func (c *context) PageOK(data interface{}, total int64) error {
 	return c.JSON(http.StatusOK, &Result{Code: 200, Data: map[string]interface{}{"total": total, "list": data}})
@@ -131,8 +132,4 @@ func (cv *context) BindAndValidate(i interface{}) error {
 		return err
 	}
 	return nil
-}
-
-func SetAuth(token string, data interface{}, exp time.Duration) {
-	goCahce.SetBySliding(token, data, exp)
 }

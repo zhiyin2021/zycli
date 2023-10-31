@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -51,9 +50,10 @@ func GetEcho() *echoext {
 			AllowMethods: []string{http.MethodGet, http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodPost, http.MethodDelete},
 		}))
 		_echo.echo.JSONSerializer = &JSONSerializer{}
-		_echo.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		_echo.echo.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
 			return func(c echo.Context) error {
-				if err := next(c); err != nil {
+				cc := &context{c, nil, validator.New()}
+				if err := next(cc); err != nil {
 					logrus.Errorf("error=>%s=>%s=>%s", err, c.Request().Method, c.Request().URL.Path)
 					if he, ok := err.(*echo.HTTPError); ok {
 						message := fmt.Sprintf("%v", he.Message)
@@ -74,7 +74,7 @@ func GetEcho() *echoext {
 				return nil
 			}
 		})
-		_echo.Use(auth)
+		// _echo.Use(auth)
 	})
 	return _echo
 }
@@ -83,7 +83,7 @@ func (e *echoext) Static(wwwFS embed.FS, indexPath string) {
 	if indexPath != "" {
 		buf, _ := wwwFS.ReadFile(indexPath)
 		_echo.routeNotFound("/*", func(c echo.Context) error {
-			if strings.HasPrefix(c.Request().URL.Path, "/api") {
+			if c.Request().Header.Get("content-type") == "application/json" {
 				return c.JSON(200, H{"code": 404, "msg": "not found"})
 			} else if ok, _ := regexp.MatchString(`/.*/`, c.Request().URL.Path); ok {
 				return nil
@@ -120,7 +120,10 @@ func (e *echoext) routeNotFound(path string, h echo.HandlerFunc, m ...echo.Middl
 	return e.echo.RouteNotFound(path, h, m...)
 }
 func (e *echoext) GET(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.echo.GET(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+	return e.echo.GET(path, func(c echo.Context) error {
+		log.Printf("GET %s ,%T", path, c)
+		return h(c.(*context))
+	}, m...)
 }
 func (e *echoext) POST(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
 	return e.echo.POST(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
@@ -200,40 +203,40 @@ func (e *Group) CONNECT(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *e
 	return e.group.CONNECT(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
 }
 
-var AnonymousUrls = []string{"/api/user.login", "/api/login"}
+// var AnonymousUrls = []string{"/api/user.login", "/api/login"}
 
-func auth(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		cc := &context{c, nil, validator.New()}
-		uri := c.Request().RequestURI
-		if strings.HasPrefix(uri, "/api") {
-			// 路由拦截 - 登录身份、资源权限判断等
-			for i := range AnonymousUrls {
-				if strings.HasPrefix(uri, AnonymousUrls[i]) {
-					return next(cc)
-				}
-			}
-			token := cc.Request().Header.Get("Authorization")
-			if token != "" {
-				if item := goCahce.Get(token); item != nil {
-					cc.auth = item.(*AuthInfo)
-				}
-			}
-			if cc.auth == nil {
-				logrus.Warnf("401 [%s] %s", uri, token)
-				return cc.NoLogin()
-			}
-			// authorization := v.(dto.Authorization)
-			// if strings.EqualFold(constant.LoginToken, authorization.Type) {
-			// 	if authorization.Remember {
-			// 		// 记住登录有效期两周
-			// 		cache.TokenManager.Set(token, authorization, cache.RememberMeExpiration)
-			// 	} else {
-			// 		cache.TokenManager.Set(token, authorization, cache.NotRememberExpiration)
-			// 	}
-			// }
-			return next(cc)
-		}
-		return next(cc)
-	}
-}
+// func auth(next echo.HandlerFunc) echo.HandlerFunc {
+// 	return func(c echo.Context) error {
+// 		cc := &context{c, nil, validator.New()}
+// 		uri := c.Request().RequestURI
+// 		if strings.HasPrefix(uri, "/api") {
+// 			// 路由拦截 - 登录身份、资源权限判断等
+// 			for i := range AnonymousUrls {
+// 				if strings.HasPrefix(uri, AnonymousUrls[i]) {
+// 					return next(cc)
+// 				}
+// 			}
+// 			token := cc.Request().Header.Get("Authorization")
+// 			if token != "" {
+// 				if item := goCahce.Get(token); item != nil {
+// 					cc.auth = item.(*AuthInfo)
+// 				}
+// 			}
+// 			if cc.auth == nil {
+// 				logrus.Warnf("401 [%s] %s", uri, token)
+// 				return cc.NoLogin()
+// 			}
+// 			// authorization := v.(dto.Authorization)
+// 			// if strings.EqualFold(constant.LoginToken, authorization.Type) {
+// 			// 	if authorization.Remember {
+// 			// 		// 记住登录有效期两周
+// 			// 		cache.TokenManager.Set(token, authorization, cache.RememberMeExpiration)
+// 			// 	} else {
+// 			// 		cache.TokenManager.Set(token, authorization, cache.NotRememberExpiration)
+// 			// 	}
+// 			// }
+// 			return next(cc)
+// 		}
+// 		return next(cc)
+// 	}
+// }

@@ -94,27 +94,43 @@ func WithIpcPath(ipcPath string) Option {
 	}
 }
 func SetLogPath(path string) {
-	logName := path + tools.CurrentName() + ".log"
-	writer, _ := rotatelogs.New(
-		logName+".%Y%m%d",                           //每天
-		rotatelogs.WithLinkName(logName),            //生成软链，指向最新日志文件
+	logPath := path + tools.CurrentName()
+	writer3, _ := rotatelogs.New(
+		logPath+".dbg.%Y%m%d",                       //每天
+		rotatelogs.WithLinkName(logPath+".dbg"),     //生成软链，指向最新日志文件
 		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
 		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
-		rotatelogs.WithRotationSize(256*1024*1024),  //设置100MB大小,当大于这个容量时，创建新的日志文件
 	)
-	mw := io.MultiWriter(os.Stdout, writer)
-	logrus.SetOutput(mw)
 
-	logName = path + tools.CurrentName() + ".err"
-	writer, _ = rotatelogs.New(
-		logName+".%Y%m%d",                           //每天
-		rotatelogs.WithLinkName(logName),            //生成软链，指向最新日志文件
+	writer1, _ := rotatelogs.New(
+		logPath+".log.%Y%m%d",                       //每天
+		rotatelogs.WithLinkName(logPath+".log"),     //生成软链，指向最新日志文件
 		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
 		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
-		rotatelogs.WithRotationSize(256*1024*1024),  //设置100MB大小,当大于这个容量时，创建新的日志文件
 	)
-	mw = io.MultiWriter(os.Stdout, writer)
-	errLog.SetOutput(mw)
+
+	writer2, _ := rotatelogs.New(
+		logPath+".err.%Y%m%d",                       //每天
+		rotatelogs.WithLinkName(logPath+".err"),     //生成软链，指向最新日志文件
+		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
+		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
+	)
+
+	mw1 := io.MultiWriter(os.Stdout, writer1)
+	mw2 := io.MultiWriter(os.Stdout, writer2)
+	mw3 := io.MultiWriter(os.Stdout, writer3)
+	writeMap := tools.WriterMap{
+		logrus.DebugLevel: mw3,
+		logrus.InfoLevel:  mw1,
+		logrus.WarnLevel:  mw1,
+		logrus.ErrorLevel: mw2,
+	}
+	lfHook := tools.NewHook(writeMap, &logrus.TextFormatter{
+		ForceColors:     true,
+		FullTimestamp:   true,
+		TimestampFormat: "150405.0000",
+	})
+	logrus.AddHook(lfHook)
 }
 func WaitQuit() <-chan os.Signal {
 	return quit
@@ -173,19 +189,14 @@ func init() {
 		TimestampFormat: "150405.0000", //时间格式化
 	}
 	logrus.SetFormatter(logFmt)
-	errLog.SetFormatter(logFmt)
 	RootCmd.PersistentFlags().BoolVar(&DEBUG, "debug", false, "start with debug mode")
-
 	RootCmd.AddCommand(dbgCmd)
-
 }
-
-var errLog = logrus.New()
 
 func OnPanic(call func(any, string)) {
 	if err := recover(); err != nil {
 		stack := string(debug.Stack())
-		errLog.Errorln(err, "\n", stack)
+		logrus.Panic(err, "\n", stack)
 		if call != nil {
 			call(err, stack)
 		}

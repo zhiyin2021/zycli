@@ -1,9 +1,9 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/sirupsen/logrus"
 	"github.com/zhiyin2021/zycli/cmd"
@@ -28,14 +28,8 @@ func run(args []string) {
 	logrus.Println("server start at ", addr)
 
 	e.GET("/", helloworld)
+	e.GET("/test", testPanic)
 	go e.Start(addr)
-	logrus.Println("server stop1")
-	ctx, cancel := context.WithCancel(context.Background())
-	logrus.Println("server stop2")
-	e.Shutdown(ctx)
-	logrus.Println("server stop3")
-	cancel()
-	logrus.Println("server stop4")
 }
 func helloworld(ctx resp.Context) error {
 	if cmd.DEBUG {
@@ -43,6 +37,12 @@ func helloworld(ctx resp.Context) error {
 		return ctx.String(200, "hello world, debug mode")
 	}
 	logrus.Infoln("hello world")
+	return ctx.String(200, "hello world")
+}
+func testPanic(ctx resp.Context) error {
+	TryGO(func() {
+		panic("test panic")
+	})
 	return ctx.String(200, "hello world")
 }
 func initConfig() {
@@ -54,4 +54,25 @@ func initConfig() {
 			Port: 8080,
 		}
 	}
+}
+
+func TryGO(f func()) {
+	go func() {
+		defer func() {
+			err := recover()
+			if err != nil {
+				logrus.Errorf("%v\n%s", err, debug.Stack())
+			}
+		}()
+		f()
+	}()
+}
+func Try(f func()) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			logrus.Errorf("%v\n%s", err, debug.Stack())
+		}
+	}()
+	f()
 }

@@ -66,6 +66,7 @@ func (m *Memory) getItem(key any) *item {
 
 // 获取缓存时自动延时
 func (m *Memory) SetBySliding(key, val any, expire time.Duration) {
+	m.Del(key)
 	item := &item{
 		value:   val,
 		sliding: expire,
@@ -75,6 +76,7 @@ func (m *Memory) SetBySliding(key, val any, expire time.Duration) {
 }
 
 func (m *Memory) Set(key, val any) {
+	m.Del(key)
 	item := &item{
 		value:   val,
 		sliding: 0,
