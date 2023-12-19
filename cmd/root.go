@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -11,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/zhiyin2021/zycli/tools"
@@ -82,9 +80,9 @@ func WithLogPath(path string) Option {
 	}
 }
 
-func WithRegSvc(reged bool) Option {
+func WithRegSvc() Option {
 	return func(opt *cmdOpt) {
-		opt.regSvc = reged
+		opt.regSvc = true
 	}
 }
 
@@ -93,45 +91,7 @@ func WithIpcPath(ipcPath string) Option {
 		opt.ipcPath = ipcPath
 	}
 }
-func SetLogPath(path string) {
-	logPath := path + tools.CurrentName()
-	writer3, _ := rotatelogs.New(
-		logPath+".dbg.%Y%m%d",                       //每天
-		rotatelogs.WithLinkName(logPath+".dbg"),     //生成软链，指向最新日志文件
-		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
-		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
-	)
 
-	writer1, _ := rotatelogs.New(
-		logPath+".log.%Y%m%d",                       //每天
-		rotatelogs.WithLinkName(logPath+".log"),     //生成软链，指向最新日志文件
-		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
-		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
-	)
-
-	writer2, _ := rotatelogs.New(
-		logPath+".err.%Y%m%d",                       //每天
-		rotatelogs.WithLinkName(logPath+".err"),     //生成软链，指向最新日志文件
-		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
-		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
-	)
-
-	mw1 := io.MultiWriter(os.Stdout, writer1)
-	mw2 := io.MultiWriter(os.Stdout, writer2)
-	mw3 := io.MultiWriter(os.Stdout, writer3)
-	writeMap := tools.WriterMap{
-		logrus.DebugLevel: mw3,
-		logrus.InfoLevel:  mw1,
-		logrus.WarnLevel:  mw1,
-		logrus.ErrorLevel: mw2,
-	}
-	lfHook := tools.NewHook(writeMap, &logrus.TextFormatter{
-		ForceColors:     true,
-		FullTimestamp:   true,
-		TimestampFormat: "150405.0000",
-	})
-	logrus.AddHook(lfHook)
-}
 func WaitQuit() <-chan os.Signal {
 	return quit
 }
@@ -184,7 +144,6 @@ var dbgCmd = &cobra.Command{
 
 func init() {
 	logFmt := &logrus.TextFormatter{
-		ForceColors:     true,
 		FullTimestamp:   true,
 		TimestampFormat: "150405.0000", //时间格式化
 	}

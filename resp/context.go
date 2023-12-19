@@ -37,6 +37,7 @@ type Context interface {
 	Uri() string
 	QueryParamInt(key string) int
 	BindAndValidate(i interface{}) error
+	Token() string
 }
 
 type context struct {
@@ -68,7 +69,7 @@ func (c *context) Token() string {
 	return c.Request().Header.Get(TokenKey)
 }
 func (c *context) PageOK(data interface{}, total int64) error {
-	return c.JSON(http.StatusOK, &Result{Code: 200, Data: map[string]interface{}{"total": total, "list": data}})
+	return c.JSON(http.StatusOK, &Result{Code: 200, Data: H{"total": total, "list": data}})
 }
 
 func (c *context) Ok(data interface{}) error {

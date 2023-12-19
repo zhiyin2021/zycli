@@ -84,6 +84,19 @@ func (m *Memory) Set(key, val any) {
 	}
 	m.items.Store(key, item)
 }
+
+func (m *Memory) SetByEmpty(key, val any) bool {
+	t := &item{
+		value:   val,
+		sliding: 0,
+		timer:   m.afterDel(m.expire, key),
+	}
+	_, flag := m.items.LoadOrStore(key, t)
+	if flag {
+		t.timer.Stop()
+	}
+	return flag
+}
 func (m *Memory) SetByExpire(key, val any, expire time.Duration) {
 	item := &item{
 		value:   val,

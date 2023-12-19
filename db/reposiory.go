@@ -199,7 +199,7 @@ func genKeyVal(expression string, val any, fields ...string) (where string, vals
 	vals = make([]any, len(fields))
 	for i, v := range fields {
 		if where != "" {
-			where += " or"
+			where += " or "
 		}
 		where += v + expression + "?"
 		vals[i] = val
@@ -220,16 +220,20 @@ func ToList[T any](options ...Option) (o []*T, err error) {
 func ToPageList[T any](page, limit int, options ...Option) (o []*T, total int64, err error) {
 	qry := GetQuery(options...)
 	var obj T
-	qry.Model(&obj).Count(&total)
 	if page < 1 {
 		page = 1
 	}
 	page--
-	err = qry.Offset(page * limit).Limit(limit).Find(&o).Error
+	err = qry.Model(&obj).Count(&total).Offset(page * limit).Limit(limit).Find(&o).Error
 	return
 }
 
-func Get[T any](options ...Option) (*T, error) {
+func Get[T any](id int) (*T, error) {
+	var o T
+	err := GetDB().Where("id=?", id).First(&o).Error
+	return &o, err
+}
+func GetBy[T any](options ...Option) (*T, error) {
 	var o T
 	err := GetQuery(options...).First(&o).Error
 	return &o, err
@@ -269,13 +273,11 @@ func (r *Repository[T]) ToList(options ...Option) (o []*T, err error) {
 }
 
 func (r *Repository[T]) Get(id int) (*T, error) {
-	var o T
-	err := GetDB().Where("id=?", id).First(&o).Error
-	return &o, err
+	return Get[T](id)
 }
 
 func (r *Repository[T]) GetBy(options ...Option) (*T, error) {
-	return Get[T](options...)
+	return GetBy[T](options...)
 }
 func (r *Repository[T]) Add(model *T) (err error) {
 	err = GetDB().Create(model).Error
@@ -287,7 +289,7 @@ func (r *Repository[T]) AddMap(model map[string]any) (err error) {
 	err = GetDB().Model(&m).Create(model).Error
 	return
 }
-func (r *Repository[T]) Update(id int, model map[string]any) error {
+func (r *Repository[T]) Update(id int, model any) error {
 	var m T
 	return GetDB().Model(&m).Where("id=?", id).Updates(model).Error
 }

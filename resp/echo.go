@@ -25,13 +25,26 @@ var (
 	_echo   *echoext
 )
 
-type H map[string]any
-type HandlerFunc func(c Context) error
-type echoext struct {
-	echo *echo.Echo
-}
+type (
+	H              map[string]any
+	HandlerFunc    func(c Context) error
+	MiddlewareFunc func(next HandlerFunc) HandlerFunc
+	echoext        struct {
+		echo *echo.Echo
+	}
+)
 
 func init() {
+
+	// jsoniter.RegisterTypeDecoderFunc("time.Time", func(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
+	// 	t, err := time.ParseInLocation("2006-01-02 15:04:05", iter.ReadString(), time.UTC)
+	// 	if err != nil {
+	// 		iter.Error = err
+	// 		return
+	// 	}
+	// 	*((*time.Time)(ptr)) = t
+	// })
+
 	jsoniter.RegisterTypeEncoderFunc("time.Time", func(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 		t := *((*time.Time)(ptr))
 		stream.WriteString(t.Format("2006-01-02 15:04:05"))
@@ -44,15 +57,17 @@ func GetEcho() *echoext {
 		_echo = &echoext{echo: echo.New()}
 		_echo.echo.HideBanner = true
 		// e.Use(middleware.Recover())
-		_echo.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		_echo.echo.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 			Skipper:      middleware.DefaultSkipper,
 			AllowOrigins: []string{"*"},
 			AllowMethods: []string{http.MethodGet, http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodPost, http.MethodDelete},
 		}))
+
 		_echo.echo.JSONSerializer = &JSONSerializer{}
-		_echo.echo.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
+		_echo.echo.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 			return func(c echo.Context) error {
 				cc := &context{c, nil, validator.New()}
+
 				if err := next(cc); err != nil {
 					logrus.Errorf("error=>%s=>%s=>%s", err, c.Request().Method, c.Request().URL.Path)
 					if he, ok := err.(*echo.HTTPError); ok {
@@ -79,7 +94,7 @@ func GetEcho() *echoext {
 	return _echo
 }
 
-func (e *echoext) Static(wwwFS embed.FS, indexPath string) {
+func (e *echoext) StaticFS(wwwFS embed.FS, indexPath string) {
 	if indexPath != "" {
 		buf, _ := wwwFS.ReadFile(indexPath)
 		_echo.routeNotFound("/*", func(c echo.Context) error {
@@ -96,60 +111,74 @@ func (e *echoext) Static(wwwFS embed.FS, indexPath string) {
 	_echo.GET("/", wrapHandler(assetHandler))
 	_echo.GET("/assets/*", wrapHandler(http.StripPrefix("/", assetHandler)))
 }
-
+func (e *echoext) Static(path string, root string) *echo.Route {
+	return _echo.echo.Static(path, root)
+}
 func getFS(embedFS embed.FS) http.FileSystem {
 	useOS := len(os.Args) > 1 && os.Args[1] == "live"
 	if useOS {
 		log.Print("using live mode")
 		return http.FS(os.DirFS("dist"))
 	}
-	log.Print("using embed mode")
 	fsys, err := fs.Sub(embedFS, "dist")
 	if err != nil {
 		panic(err)
 	}
 	return http.FS(fsys)
 }
-func (e *echoext) Group(path string) *Group {
-	return &Group{e.echo.Group(path)}
+func (e *echoext) Group(path string, m ...MiddlewareFunc) *Group {
+	return &Group{e.echo.Group(path, toMiddle(m...)...)}
 }
-func (e *echoext) Use(middleware ...echo.MiddlewareFunc) {
-	e.echo.Use(middleware...)
+func toMiddle(mws ...MiddlewareFunc) []echo.MiddlewareFunc {
+	var middleware []echo.MiddlewareFunc
+	for _, mw := range mws {
+		middleware = append(middleware, func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				next1 := func(c Context) error {
+					return next(c.(*context))
+				}
+				return mw(next1)(c.(*context))
+			}
+		})
+	}
+	return middleware
 }
-func (e *echoext) routeNotFound(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.echo.RouteNotFound(path, h, m...)
+func (e *echoext) Use(m ...MiddlewareFunc) {
+	e.echo.Use(toMiddle(m...)...)
 }
-func (e *echoext) GET(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
+func (e *echoext) routeNotFound(path string, h echo.HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.echo.RouteNotFound(path, h, toMiddle(m...)...)
+}
+func (e *echoext) GET(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
 	return e.echo.GET(path, func(c echo.Context) error {
-		log.Printf("GET %s ,%T", path, c)
 		return h(c.(*context))
-	}, m...)
+	}, toMiddle(m...)...)
 }
-func (e *echoext) POST(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.echo.POST(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
-}
-
-func (e *echoext) PUT(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.echo.PUT(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+func (e *echoext) POST(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.echo.POST(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
 }
 
-func (e *echoext) PATCH(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.echo.PATCH(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+func (e *echoext) PUT(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.echo.PUT(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
 }
-func (e *echoext) OPTIONS(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.echo.OPTIONS(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+
+func (e *echoext) PATCH(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.echo.PATCH(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
 }
-func (e *echoext) DELETE(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.echo.DELETE(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+func (e *echoext) OPTIONS(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.echo.OPTIONS(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
 }
-func (e *echoext) HEAD(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.echo.HEAD(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+func (e *echoext) DELETE(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.echo.DELETE(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
 }
-func (e *echoext) TRACE(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.echo.TRACE(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+func (e *echoext) HEAD(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.echo.HEAD(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
 }
-func (e *echoext) CONNECT(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.echo.CONNECT(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+func (e *echoext) TRACE(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.echo.TRACE(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
+}
+func (e *echoext) CONNECT(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.echo.CONNECT(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
 }
 
 func wrapHandler(h http.Handler) HandlerFunc {
@@ -161,6 +190,9 @@ func wrapHandler(h http.Handler) HandlerFunc {
 func (e *echoext) Start(addr string) error {
 	return e.echo.Start(addr)
 }
+func (e *echoext) StartTLS(addr string, crtPEM, keyPEM any) error {
+	return e.echo.Start(addr)
+}
 func (e *echoext) Shutdown(ctx cc.Context) error {
 	return e.echo.Shutdown(ctx)
 }
@@ -169,74 +201,36 @@ type Group struct {
 	group *echo.Group
 }
 
-func (e *Group) Use(m ...echo.MiddlewareFunc) {
-	e.group.Use(m...)
+func (e *Group) Use(m ...MiddlewareFunc) {
+	e.group.Use(toMiddle(m...)...)
 }
 
-func (e *Group) GET(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.group.GET(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+func (e *Group) GET(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.group.GET(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
 }
-func (e *Group) POST(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.group.POST(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
-}
-
-func (e *Group) PUT(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.group.PUT(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+func (e *Group) POST(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.group.POST(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
 }
 
-func (e *Group) PATCH(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.group.PATCH(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
-}
-func (e *Group) OPTIONS(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.group.OPTIONS(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
-}
-func (e *Group) DELETE(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.group.DELETE(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
-}
-func (e *Group) HEAD(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.group.HEAD(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
-}
-func (e *Group) TRACE(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.group.TRACE(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
-}
-func (e *Group) CONNECT(path string, h HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
-	return e.group.CONNECT(path, func(c echo.Context) error { return h(c.(*context)) }, m...)
+func (e *Group) PUT(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.group.PUT(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
 }
 
-// var AnonymousUrls = []string{"/api/user.login", "/api/login"}
-
-// func auth(next echo.HandlerFunc) echo.HandlerFunc {
-// 	return func(c echo.Context) error {
-// 		cc := &context{c, nil, validator.New()}
-// 		uri := c.Request().RequestURI
-// 		if strings.HasPrefix(uri, "/api") {
-// 			// 路由拦截 - 登录身份、资源权限判断等
-// 			for i := range AnonymousUrls {
-// 				if strings.HasPrefix(uri, AnonymousUrls[i]) {
-// 					return next(cc)
-// 				}
-// 			}
-// 			token := cc.Request().Header.Get("Authorization")
-// 			if token != "" {
-// 				if item := goCahce.Get(token); item != nil {
-// 					cc.auth = item.(*AuthInfo)
-// 				}
-// 			}
-// 			if cc.auth == nil {
-// 				logrus.Warnf("401 [%s] %s", uri, token)
-// 				return cc.NoLogin()
-// 			}
-// 			// authorization := v.(dto.Authorization)
-// 			// if strings.EqualFold(constant.LoginToken, authorization.Type) {
-// 			// 	if authorization.Remember {
-// 			// 		// 记住登录有效期两周
-// 			// 		cache.TokenManager.Set(token, authorization, cache.RememberMeExpiration)
-// 			// 	} else {
-// 			// 		cache.TokenManager.Set(token, authorization, cache.NotRememberExpiration)
-// 			// 	}
-// 			// }
-// 			return next(cc)
-// 		}
-// 		return next(cc)
-// 	}
-// }
+func (e *Group) PATCH(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.group.PATCH(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
+}
+func (e *Group) OPTIONS(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.group.OPTIONS(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
+}
+func (e *Group) DELETE(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.group.DELETE(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
+}
+func (e *Group) HEAD(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.group.HEAD(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
+}
+func (e *Group) TRACE(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.group.TRACE(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
+}
+func (e *Group) CONNECT(path string, h HandlerFunc, m ...MiddlewareFunc) *echo.Route {
+	return e.group.CONNECT(path, func(c echo.Context) error { return h(c.(*context)) }, toMiddle(m...)...)
+}
