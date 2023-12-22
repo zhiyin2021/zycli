@@ -3,6 +3,7 @@ package cache
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -22,6 +23,7 @@ func NewMemory(expire time.Duration) *Memory {
 	return &Memory{
 		items:  sync.Map{},
 		expire: expire,
+		Count:  0,
 	}
 }
 
@@ -29,6 +31,7 @@ type Memory struct {
 	items  sync.Map
 	mutex  sync.RWMutex
 	expire time.Duration
+	Count  int32
 }
 
 func (*Memory) String() string {
@@ -42,7 +45,6 @@ func (m *Memory) Get(key any) any {
 	}
 	if item.sliding > 0 {
 		item.timer.Reset(item.sliding)
-		m.items.Store(key, item)
 	}
 	return item.value
 }
@@ -72,6 +74,7 @@ func (m *Memory) SetBySliding(key, val any, expire time.Duration) {
 		sliding: expire,
 		timer:   m.afterDel(expire, key),
 	}
+	atomic.AddInt32(&m.Count, 1)
 	m.items.Store(key, item)
 }
 
@@ -82,6 +85,7 @@ func (m *Memory) Set(key, val any) {
 		sliding: 0,
 		timer:   m.afterDel(m.expire, key),
 	}
+	atomic.AddInt32(&m.Count, 1)
 	m.items.Store(key, item)
 }
 
@@ -94,6 +98,8 @@ func (m *Memory) SetByEmpty(key, val any) bool {
 	_, flag := m.items.LoadOrStore(key, t)
 	if flag {
 		t.timer.Stop()
+	} else {
+		atomic.AddInt32(&m.Count, 1)
 	}
 	return flag
 }
@@ -103,17 +109,20 @@ func (m *Memory) SetByExpire(key, val any, expire time.Duration) {
 		sliding: 0,
 		timer:   m.afterDel(expire, key),
 	}
+	atomic.AddInt32(&m.Count, 1)
 	m.items.Store(key, item)
 }
 func (m *Memory) afterDel(expire time.Duration, key any) *time.Timer {
 	return time.AfterFunc(expire, func() {
 		logrus.Debugln("delete", key)
+		atomic.AddInt32(&m.Count, -1)
 		m.items.Delete(key)
 	})
 }
 func (m *Memory) Del(key any) {
 	if t, ok := m.items.LoadAndDelete(key); ok {
 		t.(*item).timer.Stop()
+		atomic.AddInt32(&m.Count, -1)
 	}
 }
 
