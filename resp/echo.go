@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"reflect"
 	"regexp"
 	"sync"
 	"time"
@@ -58,6 +59,13 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("registerDefaultTranslations fail: %s\n", err.Error()))
 	}
+	Validator.RegisterTagNameFunc(func(field reflect.StructField) string {
+		label := field.Tag.Get("label")
+		if label == "" {
+			return field.Name
+		}
+		return label
+	})
 
 	jsoniter.RegisterTypeEncoderFunc("time.Time", func(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 		t := *((*time.Time)(ptr))
