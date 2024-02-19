@@ -48,6 +48,31 @@ func (m *Memory) Get(key any) any {
 	}
 	return item.value
 }
+func (m *Memory) GetOrStoreBySliding(key any, val any, expire time.Duration) (any, bool) {
+	t := &item{
+		value:   val,
+		sliding: expire,
+	}
+	t1, flag := m.items.LoadOrStore(key, t)
+	if !flag {
+		t.timer = m.afterDel(expire, key)
+	} else {
+		t1.(*item).timer.Reset(expire)
+	}
+	return t1.(*item).value, flag
+}
+
+func (m *Memory) GetOrStore(key any, val any, expire time.Duration) (any, bool) {
+	t := &item{
+		value:   val,
+		sliding: 0,
+	}
+	t1, flag := m.items.LoadOrStore(key, t)
+	if !flag {
+		t.timer = m.afterDel(m.expire, key)
+	}
+	return t1.(*item).value, flag
+}
 
 func (m *Memory) GetAndDel(key any) any {
 	if t, ok := m.items.LoadAndDelete(key); ok {

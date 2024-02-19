@@ -2,16 +2,17 @@ package resp
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/zhiyin2021/zycli/cache"
 
-	"github.com/go-playground/validator"
 	"github.com/labstack/echo/v4"
-	"github.com/sirupsen/logrus"
 )
 
 type Result struct {
@@ -42,8 +43,7 @@ type Context interface {
 
 type context struct {
 	echo.Context
-	auth      any
-	validator *validator.Validate
+	auth any
 }
 
 var (
@@ -128,9 +128,12 @@ func (cv *context) BindAndValidate(i interface{}) error {
 	if err := cv.Bind(i); err != nil {
 		return err
 	}
-	logrus.Infoln("BindAndValidate", i)
-	if err := cv.validator.Struct(i); err != nil {
-		return err
+	if err := Validator.Struct(i); err != nil {
+		errMsg := []string{}
+		for _, e := range err.(validator.ValidationErrors) {
+			errMsg = append(errMsg, e.Translate(trans))
+		}
+		return errors.New(strings.Join(errMsg, "\n"))
 	}
 	return nil
 }

@@ -13,16 +13,22 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/go-playground/validator"
+	"github.com/go-playground/validator/v10"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
+
+	"github.com/go-playground/locales/zh"
+	ut "github.com/go-playground/universal-translator"
+	zhTrans "github.com/go-playground/validator/v10/translations/zh"
 )
 
 var (
-	runOnce sync.Once
-	_echo   *echoext
+	runOnce   sync.Once
+	_echo     *echoext
+	Validator *validator.Validate
+	trans     ut.Translator
 )
 
 type (
@@ -44,6 +50,14 @@ func init() {
 	// 	}
 	// 	*((*time.Time)(ptr)) = t
 	// })
+	Validator = validator.New()
+	uniTrans := ut.New(zh.New())
+	trans, _ = uniTrans.GetTranslator("zh")
+	// 注册翻译器到验证器
+	err := zhTrans.RegisterDefaultTranslations(Validator, trans)
+	if err != nil {
+		panic(fmt.Sprintf("registerDefaultTranslations fail: %s\n", err.Error()))
+	}
 
 	jsoniter.RegisterTypeEncoderFunc("time.Time", func(ptr unsafe.Pointer, stream *jsoniter.Stream) {
 		t := *((*time.Time)(ptr))
@@ -66,7 +80,7 @@ func GetEcho() *echoext {
 		_echo.echo.JSONSerializer = &JSONSerializer{}
 		_echo.echo.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 			return func(c echo.Context) error {
-				cc := &context{c, nil, validator.New()}
+				cc := &context{c, nil}
 
 				if err := next(cc); err != nil {
 					logrus.Errorf("error=>%s=>%s=>%s", err, c.Request().Method, c.Request().URL.Path)
