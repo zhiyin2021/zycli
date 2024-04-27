@@ -19,6 +19,12 @@ type cmdOpt struct {
 	regSvc  bool
 	logPath string
 	ipcPath string
+	// 日志相关
+	maxSize      int64
+	maxAge       int
+	maxCount     int
+	compressType CompressType
+	layout       string
 }
 
 type Option func(*cmdOpt)
@@ -28,7 +34,16 @@ var (
 	DEBUG     = false
 	svcFunc   func([]string)
 	quit, sig = make(chan os.Signal), make(chan os.Signal)
-	defOpt    = &cmdOpt{regSvc: false, logPath: tools.CurrentDir() + "/log/", ipcPath: tools.FixPath(tools.CurrentName() + ".ipc")}
+	defOpt    = &cmdOpt{
+		regSvc:       false,
+		logPath:      tools.CurrentDir() + "/log/",
+		ipcPath:      tools.FixPath(tools.CurrentName() + ".ipc"),
+		maxSize:      1000,
+		maxAge:       90,
+		maxCount:     0,
+		compressType: CT_XZ,
+		layout:       "060102_150405_000",
+	}
 )
 var RootCmd = &cobra.Command{
 	Use:     tools.CurrentName(),
@@ -91,7 +106,31 @@ func WithIpcPath(ipcPath string) Option {
 		opt.ipcPath = ipcPath
 	}
 }
-
+func WithLogMaxSize(maxSize int64) Option {
+	return func(opt *cmdOpt) {
+		opt.maxSize = maxSize
+	}
+}
+func WithLogMaxAge(maxAge int) Option {
+	return func(opt *cmdOpt) {
+		opt.maxAge = maxAge
+	}
+}
+func WithLogMaxCount(maxCount int) Option {
+	return func(opt *cmdOpt) {
+		opt.maxCount = maxCount
+	}
+}
+func WithLogCompressType(compressType CompressType) Option {
+	return func(opt *cmdOpt) {
+		opt.compressType = compressType
+	}
+}
+func WithLogLayout(layout string) Option {
+	return func(opt *cmdOpt) {
+		opt.layout = layout
+	}
+}
 func WaitQuit() <-chan os.Signal {
 	return quit
 }
@@ -118,8 +157,8 @@ func Execute(mainFunc func([]string), opts ...Option) {
 	if defOpt.regSvc {
 		addSvc()
 	}
-	SetLogPath(defOpt.logPath)
-
+	// SetLogPath(defOpt.logPath)
+	defOpt.initLog()
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

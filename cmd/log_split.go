@@ -17,12 +17,6 @@ import (
 	"github.com/zhiyin2021/zycli/tools"
 )
 
-const (
-	_backupTimeFormat = "2006-01-02T15-04-05.000"
-	_compressSuffix   = ".gz"
-	_defaultMaxSize   = 100
-)
-
 // ensure we always implement io.WriteCloser
 var _ io.WriteCloser = (*logWriter)(nil)
 
@@ -49,21 +43,21 @@ type logWriter struct {
 	// hours and may not exactly correspond to calendar days due to daylight
 	// savings, leap seconds, etc. The default is not to remove old log files
 	// based on age.
-	MaxAge int
+	maxAge int
 
 	// MaxBackups is the maximum number of old log files to retain.  The default
 	// is to retain all old log files (though MaxAge may still cause them to get
 	// deleted.)
-	MaxCount int
+	maxCount int
 
-	// LocalTime determines if the time used for formatting the timestamps in
-	// backup files is the computer's local time.  The default is to use UTC
-	// time.
-	LocalTime bool
-	Layout    string
+	// // LocalTime determines if the time used for formatting the timestamps in
+	// // backup files is the computer's local time.  The default is to use UTC
+	// // time.
+	// localTime bool
+	layout string
 	// Compress determines if the rotated log files should be compressed
 	// using gzip. The default is not to perform compression.
-	CompressType CompressType
+	compressType CompressType
 	// BackupTimeFormat string `json:"backuptimeformat" yaml:"backuptimeformat"`
 	size int64
 	file *os.File
@@ -85,7 +79,7 @@ var (
 	// megabyte is the conversion factor between MaxSize and bytes.  It is a
 	// variable so tests can mock it out and not need to write megabytes of data
 	// to disk.
-	megabyte = 1024 * 1024
+	mbyte int64 = 1024 * 1024
 )
 
 type logWriterOption func(l *logWriter)
@@ -96,11 +90,11 @@ func NewSplit(fileName string, opts ...logWriterOption) *logWriter {
 	}
 	l := &logWriter{
 		filename:     fileName,
-		maxSize:      100 * 1024 * 1024, // megabytes
-		MaxCount:     0,
-		MaxAge:       31,    // days
-		CompressType: CT_GZ, // disabled by default
-		Layout:       "060102150405.000",
+		maxSize:      100 * mbyte, // megabytes
+		maxCount:     0,
+		maxAge:       31,    // days
+		compressType: CT_GZ, // disabled by default
+		layout:       "060102150405.000",
 		millRuning:   0,
 		dir:          filepath.Dir(fileName),
 	}
@@ -113,35 +107,35 @@ func NewSplit(fileName string, opts ...logWriterOption) *logWriter {
 // 最大切割文件大小,单位:MB,默认:100MB
 func OptMaxSize(maxSize int64) logWriterOption {
 	return func(l *logWriter) {
-		l.maxSize = maxSize * 1024 * 1024
+		l.maxSize = maxSize * mbyte
 	}
 }
 
 // 保留文件数量,默认:0
 func OptMaxCount(maxCount int) logWriterOption {
 	return func(l *logWriter) {
-		l.MaxCount = maxCount
+		l.maxCount = maxCount
 	}
 }
 
 // 保留天数,默认:31
 func OptMaxAge(maxAge int) logWriterOption {
 	return func(l *logWriter) {
-		l.MaxAge = maxAge
+		l.maxAge = maxAge
 	}
 }
 
 // 是否压缩,默认:是
 func OptCompressType(compressType CompressType) logWriterOption {
 	return func(l *logWriter) {
-		l.CompressType = compressType
+		l.compressType = compressType
 	}
 }
 
 // 切割文件时间格式,默认:060102150405.000
 func OptLayout(layout string) logWriterOption {
 	return func(l *logWriter) {
-		l.Layout = layout
+		l.layout = layout
 	}
 }
 
@@ -235,7 +229,7 @@ func (l *logWriter) openNew() error {
 		// Copy the mode off the old logfile.
 		mode = info.Mode()
 		// move the existing file
-		newname := l.backupName(name, l.LocalTime)
+		newname := l.backupName(name)
 		if err := os.Rename(name, newname); err != nil {
 			return fmt.Errorf("can't rename log file: %s", err)
 		}
@@ -261,17 +255,14 @@ func (l *logWriter) openNew() error {
 // backupName creates a new filename from the given name, inserting a timestamp
 // between the filename and the extension, using the local time if requested
 // (otherwise UTC).
-func (l *logWriter) backupName(name string, local bool) string {
+func (l *logWriter) backupName(name string) string {
 	dir := filepath.Dir(name)
 	filename := filepath.Base(name)
 	ext := filepath.Ext(filename)
 	prefix := filename[:len(filename)-len(ext)]
 	t := currentTime()
-	if !local {
-		t = t.UTC()
-	}
 
-	timestamp := t.Format(l.Layout)
+	timestamp := t.Format(l.layout)
 	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
 }
 
@@ -313,7 +304,7 @@ func (l *logWriter) millRunOnce() error {
 	// fmt.Printf("millRunOnce:%#v\n", l)
 	if ok := atomic.CompareAndSwapInt32(&l.millRuning, 0, 1); ok {
 		defer atomic.StoreInt32(&l.millRuning, 0)
-		if l.MaxCount == 0 && l.MaxAge == 0 && l.CompressType == CT_NONE {
+		if l.maxCount == 0 && l.maxAge == 0 && l.compressType == CT_NONE {
 			return nil
 		}
 
@@ -324,19 +315,19 @@ func (l *logWriter) millRunOnce() error {
 
 		var compress, remove []logInfo
 
-		if l.MaxCount > 0 && l.MaxCount < len(files) {
+		if l.maxCount > 0 && l.maxCount < len(files) {
 			preserved := make(map[string]bool)
 			var remaining []logInfo
 			for _, f := range files {
 				// Only count the uncompressed log file or the
 				// compressed log file, not both.
 				fn := f.Name()
-				if ok := strings.HasSuffix(fn, string(l.CompressType)); ok {
-					fn = fn[:len(fn)-len(l.CompressType)]
+				if ok := strings.HasSuffix(fn, string(l.compressType)); ok {
+					fn = fn[:len(fn)-len(l.compressType)]
 				}
 				preserved[fn] = true
 
-				if len(preserved) > l.MaxCount {
+				if len(preserved) > l.maxCount {
 					remove = append(remove, f)
 				} else {
 					remaining = append(remaining, f)
@@ -344,8 +335,8 @@ func (l *logWriter) millRunOnce() error {
 			}
 			files = remaining
 		}
-		if l.MaxAge > 0 {
-			diff := time.Duration(int64(24*time.Hour) * int64(l.MaxAge))
+		if l.maxAge > 0 {
+			diff := time.Duration(int64(24*time.Hour) * int64(l.maxAge))
 			cutoff := currentTime().Add(-1 * diff)
 
 			var remaining []logInfo
@@ -359,9 +350,9 @@ func (l *logWriter) millRunOnce() error {
 			files = remaining
 		}
 
-		if l.CompressType != CT_NONE {
+		if l.compressType != CT_NONE {
 			for _, f := range files {
-				if !strings.HasSuffix(f.Name(), string(l.CompressType)) {
+				if !strings.HasSuffix(f.Name(), string(l.compressType)) {
 					compress = append(compress, f)
 				}
 			}
@@ -375,7 +366,7 @@ func (l *logWriter) millRunOnce() error {
 		}
 		for _, f := range compress {
 			fn := filepath.Join(l.dir, f.Name())
-			errCompress := l.compress(fn, fn+string(l.CompressType))
+			errCompress := l.compress(fn, fn+string(l.compressType))
 			if err == nil && errCompress != nil {
 				err = errCompress
 			}
@@ -427,7 +418,7 @@ func (l *logWriter) oldLogFiles() ([]logInfo, error) {
 			logFiles = append(logFiles, logInfo{t, fi})
 			continue
 		}
-		if t, err := l.timeFromName(f.Name(), prefix, ext+string(l.CompressType)); err == nil {
+		if t, err := l.timeFromName(f.Name(), prefix, ext+string(l.compressType)); err == nil {
 			logFiles = append(logFiles, logInfo{t, fi})
 			continue
 		}
@@ -451,7 +442,7 @@ func (l *logWriter) timeFromName(filename, prefix, ext string) (time.Time, error
 		return time.Time{}, errors.New("mismatched extension")
 	}
 	ts := filename[len(prefix) : len(filename)-len(ext)]
-	return time.Parse(l.Layout, ts)
+	return time.Parse(l.layout, ts)
 }
 
 // prefixAndExt returns the filename part and extension part from the logWriter's
@@ -463,7 +454,7 @@ func (l *logWriter) prefixAndExt() (prefix, ext string) {
 	return prefix, ext
 }
 func (l *logWriter) compress(src, dst string) (err error) {
-	switch l.CompressType {
+	switch l.compressType {
 	case CT_GZ:
 		return gzcompress(src, dst)
 	case CT_XZ:

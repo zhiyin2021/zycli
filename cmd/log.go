@@ -82,7 +82,7 @@ func getLogPath(args []string) (string, error) {
 			logName += "." + args[0]
 		} else {
 			fmt.Println("View Historical Log Format yyyyMMdd")
-			return logName, errors.New("View Historical Log Format yyyyMMdd")
+			return logName, errors.New("view Historical Log Format yyyyMMdd")
 		}
 	}
 	if !tools.FileExist(logName) {
@@ -92,24 +92,23 @@ func getLogPath(args []string) (string, error) {
 	return logName, nil
 }
 
-// type rotateLogsEvent struct{}
+func (opt *cmdOpt) initLog() {
+	logPath := opt.logPath + tools.CurrentName()
 
-// func (e *rotateLogsEvent) Handle(ev rotatelogs.Event) {
-// 	if fre, ok := ev.(*rotatelogs.FileRotatedEvent); ok {
-// 		if fre.PreviousFile() != "" {
-// 			logrus.Infof("switch logfile %s => %s", fre.PreviousFile(), fre.CurrentFile())
-// 			go tools.RunCmd("xz", fre.PreviousFile())
-// 		}
-// 	}
-// }
-
-// var logsEv = &rotateLogsEvent{}
-
-func SetLogPath(path string) {
-	logPath := path + tools.CurrentName()
-
-	dbgWrite := NewSplit(logPath+".dbg", OptMaxSize(1000), OptMaxAge(90))
-	logWrite := NewSplit(logPath+".log", OptMaxSize(1000), OptMaxAge(90))
+	dbgWrite := NewSplit(logPath+".dbg", func(l *logWriter) {
+		l.maxSize = opt.maxSize
+		l.maxAge = opt.maxAge
+		l.maxCount = opt.maxCount
+		l.compressType = opt.compressType
+		l.layout = opt.layout
+	})
+	logWrite := NewSplit(logPath+".log", func(l *logWriter) {
+		l.maxSize = opt.maxSize
+		l.maxAge = opt.maxAge
+		l.maxCount = opt.maxCount
+		l.compressType = opt.compressType
+		l.layout = opt.layout
+	})
 
 	// logrus.SetOutput(logWrite)
 	writeMap := tools.WriterMap{
