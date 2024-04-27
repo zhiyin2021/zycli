@@ -15,6 +15,10 @@ var (
 	_db *gorm.DB
 )
 
+type IEntities interface {
+	GetId() int
+}
+
 func SetDB(db *gorm.DB) {
 	_db = db
 }
@@ -206,46 +210,46 @@ func genKeyVal(expression string, val any, fields ...string) (where string, vals
 	}
 	return
 }
-func Count[T any](options ...Option) (total int64) {
+func Count[T IEntities](options ...Option) (total int64) {
 	db := GetQuery(options...)
 	var s T
 	db.Model(&s).Count(&total)
 	return
 }
 
-func ToList[T any](options ...Option) (o []*T, err error) {
+func ToList[T IEntities](options ...Option) (o []T, err error) {
 	err = GetQuery(options...).Find(&o).Error
 	return
 }
-func ToPageList[T any](page, limit int, options ...Option) (o []*T, total int64, err error) {
+func ToPageList[T IEntities](page, limit int, options ...Option) (o []T, total int64, err error) {
 	qry := GetQuery(options...)
 	var obj T
 	if page < 1 {
 		page = 1
 	}
 	page--
-	err = qry.Model(&obj).Count(&total).Offset(page * limit).Limit(limit).Find(&o).Error
+	err = qry.Model(obj).Count(&total).Offset(page * limit).Limit(limit).Find(&o).Error
 	return
 }
 
-func Get[T any](id int) (*T, error) {
-	var o T
+func Get[T IEntities](id int) (T, error) {
+	var o *T
 	err := GetDB().Where("id=?", id).First(&o).Error
-	return &o, err
+	return *o, err
 }
-func GetBy[T any](options ...Option) (*T, error) {
-	var o T
+func GetBy[T IEntities](options ...Option) (T, error) {
+	var o *T
 	err := GetQuery(options...).First(&o).Error
-	return &o, err
+	return *o, err
 }
 
-func Add(model any) (err error) {
+func Add(model IEntities) (err error) {
 	log.Println("AddByEntities", model)
 	err = GetDB().Create(model).Error
 	return
 }
 
-type Repository[T any] struct {
+type Repository[T IEntities] struct {
 	runOne sync.Once
 	log    *logrus.Entry
 }
@@ -256,7 +260,7 @@ func (r *Repository[T]) Log() *logrus.Entry {
 	})
 	return r.log //.Debug()
 }
-func (r *Repository[T]) ToPageList(page, limit int, options ...Option) (o []*T, total int64, err error) {
+func (r *Repository[T]) ToPageList(page, limit int, options ...Option) (o []T, total int64, err error) {
 	return ToPageList[T](page, limit, options...)
 }
 
@@ -268,18 +272,18 @@ func GetQuery(options ...Option) *gorm.DB {
 	return db
 }
 
-func (r *Repository[T]) ToList(options ...Option) (o []*T, err error) {
+func (r *Repository[T]) ToList(options ...Option) (o []T, err error) {
 	return ToList[T](options...)
 }
 
-func (r *Repository[T]) Get(id int) (*T, error) {
+func (r *Repository[T]) Get(id int) (T, error) {
 	return Get[T](id)
 }
 
-func (r *Repository[T]) GetBy(options ...Option) (*T, error) {
+func (r *Repository[T]) GetBy(options ...Option) (T, error) {
 	return GetBy[T](options...)
 }
-func (r *Repository[T]) Add(model *T) (err error) {
+func (r *Repository[T]) Add(model IEntities) (err error) {
 	err = GetDB().Create(model).Error
 	return
 }
@@ -289,11 +293,17 @@ func (r *Repository[T]) AddMap(model map[string]any) (err error) {
 	err = GetDB().Model(&m).Create(model).Error
 	return
 }
-func (r *Repository[T]) Update(id int, model any) error {
+func (r *Repository[T]) Update(model IEntities) error {
 	var m T
-	return GetDB().Model(&m).Where("id=?", id).Updates(model).Error
+	return GetDB().Model(&m).Where("id=?", model.GetId()).Updates(model).Error
 }
-
+func (r *Repository[T]) AddOrUpdate(model IEntities) error {
+	if model.GetId() > 0 {
+		return r.Update(model)
+	} else {
+		return r.Add(model)
+	}
+}
 func (r *Repository[T]) Delete(id int) error {
 	var m T
 	return GetDB().Delete(&m, "id=?", id).Error

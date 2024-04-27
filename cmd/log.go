@@ -1,12 +1,11 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"time"
 
-	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/zhiyin2021/zycli/tools"
@@ -17,7 +16,7 @@ var logCmd = &cobra.Command{
 	Short: "log cat, log vi, log ls, log [cmd] yyyyMMdd",
 	Long:  `log3 service`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if logPath := getLogPath(args); logPath != "" {
+		if logPath, err := getLogPath(args); err == nil {
 			cc := exec.Command("tail", "-f", logPath)
 			cc.Stdout = os.Stdout
 			//异步启动子进程
@@ -31,11 +30,18 @@ var catLogCmd = &cobra.Command{
 	Short: "cat",
 	Long:  `cat log `,
 	Run: func(cmd *cobra.Command, args []string) {
-		if logPath := getLogPath(args); logPath != "" {
-			cc := exec.Command("cat", logPath)
-			cc.Stdout = os.Stdout
-			//异步启动子进程
-			cc.Run()
+		if logPath, _ := getLogPath(args); logPath != "" {
+			if !tools.FileExist(logPath) {
+				cc := exec.Command("xzcat", logPath+".xz")
+				cc.Stdout = os.Stdout
+				//异步启动子进程
+				cc.Run()
+			} else {
+				cc := exec.Command("cat", logPath)
+				cc.Stdout = os.Stdout
+				//异步启动子进程
+				cc.Run()
+			}
 		}
 	},
 }
@@ -45,7 +51,7 @@ var vimLogCmd = &cobra.Command{
 	Short: "vi",
 	Long:  `vim log `,
 	Run: func(cmd *cobra.Command, args []string) {
-		if logPath := getLogPath(args); logPath != "" {
+		if logPath, err := getLogPath(args); err == nil {
 			cc := exec.Command("vi", logPath)
 			cc.Stdout = os.Stdout
 			cc.Stdin = os.Stdin
@@ -69,67 +75,50 @@ var lsLogCmd = &cobra.Command{
 	},
 }
 
-func getLogPath(args []string) string {
+func getLogPath(args []string) (string, error) {
 	logName := defOpt.logPath + tools.CurrentName() + ".log"
 	if len(args) > 0 {
 		if len(args[0]) == 8 {
 			logName += "." + args[0]
 		} else {
 			fmt.Println("View Historical Log Format yyyyMMdd")
-			return ""
+			return logName, errors.New("View Historical Log Format yyyyMMdd")
 		}
 	}
 	if !tools.FileExist(logName) {
 		fmt.Println("log file not exist", logName)
-		return ""
+		return logName, errors.New("log file not exists " + logName)
 	}
-	return logName
+	return logName, nil
 }
 
-type rotateLogsEvent struct{}
+// type rotateLogsEvent struct{}
 
-func (e *rotateLogsEvent) Handle(ev rotatelogs.Event) {
-	if fre, ok := ev.(*rotatelogs.FileRotatedEvent); ok {
-		if fre.PreviousFile() != "" {
-			logrus.Infof("switch logfile %s => %s", fre.PreviousFile(), fre.CurrentFile())
-			go tools.RunCmd("xz", fre.PreviousFile())
-		}
-	}
-}
+// func (e *rotateLogsEvent) Handle(ev rotatelogs.Event) {
+// 	if fre, ok := ev.(*rotatelogs.FileRotatedEvent); ok {
+// 		if fre.PreviousFile() != "" {
+// 			logrus.Infof("switch logfile %s => %s", fre.PreviousFile(), fre.CurrentFile())
+// 			go tools.RunCmd("xz", fre.PreviousFile())
+// 		}
+// 	}
+// }
 
-var logsEv = &rotateLogsEvent{}
+// var logsEv = &rotateLogsEvent{}
 
 func SetLogPath(path string) {
 	logPath := path + tools.CurrentName()
-	writer3, _ := rotatelogs.New(
-		logPath+".dbg.%Y%m%d",                       //每天
-		rotatelogs.WithLinkName(logPath+".dbg"),     //生成软链，指向最新日志文件
-		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
-		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
-		rotatelogs.WithHandler(logsEv),
-	)
 
-	writer1, _ := rotatelogs.New(
-		logPath+".log.%Y%m%d",                       //每天
-		rotatelogs.WithLinkName(logPath+".log"),     //生成软链，指向最新日志文件
-		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
-		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
-	)
+	dbgWrite := NewSplit(logPath+".dbg", OptMaxSize(1000), OptMaxAge(90))
+	logWrite := NewSplit(logPath+".log", OptMaxSize(1000), OptMaxAge(90))
 
-	writer2, _ := rotatelogs.New(
-		logPath+".err.%Y%m%d",                       //每天
-		rotatelogs.WithLinkName(logPath+".err"),     //生成软链，指向最新日志文件
-		rotatelogs.WithRotationTime(10*time.Minute), //最小为5分钟轮询。默认60s  低于1分钟就按1分钟来
-		rotatelogs.WithRotationCount(100),           //设置10份 大于10份 或到了清理时间 开始清理
-	)
-
+	// logrus.SetOutput(logWrite)
 	writeMap := tools.WriterMap{
-		logrus.DebugLevel: writer3,
-		logrus.InfoLevel:  writer1,
-		logrus.WarnLevel:  writer1,
-		logrus.ErrorLevel: writer1,
-		logrus.FatalLevel: writer2,
-		logrus.PanicLevel: writer2,
+		logrus.DebugLevel: dbgWrite,
+		logrus.InfoLevel:  logWrite,
+		logrus.WarnLevel:  logWrite,
+		logrus.ErrorLevel: logWrite,
+		logrus.FatalLevel: logWrite,
+		logrus.PanicLevel: logWrite,
 	}
 
 	lfHook := tools.NewHook(writeMap, &logrus.TextFormatter{
