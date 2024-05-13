@@ -1,17 +1,19 @@
 package main
 
 import (
-	"net"
+	"fmt"
+	"log"
 
-	"github.com/sirupsen/logrus"
+	"github.com/zhiyin2021/zycli/cmd"
 )
 
 func main() {
-	dial, err := net.Dial("unix", "test.sock")
-	if err != nil {
-		logrus.Errorln("dial err:", err)
-	} else {
-		logrus.Println("dial success")
-		defer dial.Close()
+	fmt.Println("start...")
+	split := cmd.NewSplit("./log/test.log", cmd.OptMaxSize(100), cmd.OptMaxAge(7), cmd.OptCompressType(cmd.CT_XZ))
+	log.SetOutput(split)
+	fmt.Println("started")
+	for {
+		log.Println("hello world!!!hello world!!!hello world!!!hello world!!!hello world!!!hello world!!!hello world!!!")
+		// time.Sleep(time.Second)
 	}
 }

@@ -96,19 +96,15 @@ func (opt *cmdOpt) initLog() {
 	logPath := opt.logPath + tools.CurrentName()
 
 	dbgWrite := NewSplit(logPath+".dbg", func(l *logWriter) {
-		l.maxSize = opt.maxSize
 		l.maxAge = opt.maxAge
 		l.maxCount = opt.maxCount
 		l.compressType = opt.compressType
-		l.layout = opt.layout
-	})
+	}, OptMaxSize(opt.maxSize))
 	logWrite := NewSplit(logPath+".log", func(l *logWriter) {
-		l.maxSize = opt.maxSize
 		l.maxAge = opt.maxAge
 		l.maxCount = opt.maxCount
 		l.compressType = opt.compressType
-		l.layout = opt.layout
-	})
+	}, OptMaxSize(opt.maxSize))
 
 	// logrus.SetOutput(logWrite)
 	writeMap := tools.WriterMap{

@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"compress/gzip"
-	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -54,7 +54,7 @@ type logWriter struct {
 	// // backup files is the computer's local time.  The default is to use UTC
 	// // time.
 	// localTime bool
-	layout string
+	// layout string
 	// Compress determines if the rotated log files should be compressed
 	// using gzip. The default is not to perform compression.
 	compressType CompressType
@@ -67,6 +67,9 @@ type logWriter struct {
 	startMill  sync.Once
 	millRuning int32
 	dir        string
+
+	ctime time.Time
+	pos   int
 }
 
 var (
@@ -94,9 +97,10 @@ func NewSplit(fileName string, opts ...logWriterOption) *logWriter {
 		maxCount:     0,
 		maxAge:       31,    // days
 		compressType: CT_GZ, // disabled by default
-		layout:       "060102150405.000",
-		millRuning:   0,
-		dir:          filepath.Dir(fileName),
+		// layout:       "060102150405.000",
+		millRuning: 0,
+		dir:        filepath.Dir(fileName),
+		pos:        0,
 	}
 	for _, opt := range opts {
 		opt(l)
@@ -133,11 +137,11 @@ func OptCompressType(compressType CompressType) logWriterOption {
 }
 
 // 切割文件时间格式,默认:060102150405.000
-func OptLayout(layout string) logWriterOption {
-	return func(l *logWriter) {
-		l.layout = layout
-	}
-}
+// func OptLayout(layout string) logWriterOption {
+// 	return func(l *logWriter) {
+// 		l.layout = layout
+// 	}
+// }
 
 // Write implements io.Writer.  If a write would cause the log file to be larger
 // than MaxSize, the file is closed, renamed to include a timestamp of the
@@ -158,6 +162,7 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 		if err = l.openExistingOrNew(len(p)); err != nil {
 			return 0, err
 		}
+
 	}
 
 	if l.size+writeLen > l.maxSize {
@@ -165,7 +170,12 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 			return 0, err
 		}
 	}
-
+	if l.ctime.Day() != time.Now().Day() {
+		l.pos = 0
+		if err := l.rotate(); err != nil {
+			return 0, err
+		}
+	}
 	n, err = l.file.Write(p)
 	l.size += int64(n)
 
@@ -208,6 +218,7 @@ func (l *logWriter) rotate() error {
 		return err
 	}
 	if err := l.openNew(); err != nil {
+		fmt.Println("rotate.openNew", err)
 		return err
 	}
 	l.mill()
@@ -249,6 +260,7 @@ func (l *logWriter) openNew() error {
 	}
 	l.file = f
 	l.size = 0
+	l.ctime = time.Now()
 	return nil
 }
 
@@ -262,8 +274,15 @@ func (l *logWriter) backupName(name string) string {
 	prefix := filename[:len(filename)-len(ext)]
 	t := currentTime()
 
-	timestamp := t.Format(l.layout)
-	return filepath.Join(dir, fmt.Sprintf("%s_%s%s", prefix, timestamp, ext))
+	timestamp := t.Format("20060102")
+
+	for {
+		l.pos++
+		logPath := filepath.Join(dir, fmt.Sprintf("%s_%s.%d%s", prefix, timestamp, l.pos, ext))
+		if _, err := osStat(logPath + string(l.compressType)); err != nil {
+			return logPath
+		}
+	}
 }
 
 // openExistingOrNew opens the logfile if it exists and if the current write
@@ -284,7 +303,9 @@ func (l *logWriter) openExistingOrNew(writeLen int) error {
 	if info.Size()+int64(writeLen) >= l.maxSize {
 		return l.rotate()
 	}
-
+	if info.ModTime().Day() != time.Now().Day() {
+		return l.rotate()
+	}
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		// if we fail to open the old log file for some reason, just ignore
@@ -293,6 +314,7 @@ func (l *logWriter) openExistingOrNew(writeLen int) error {
 	}
 	l.file = file
 	l.size = info.Size()
+	l.ctime = info.ModTime()
 	return nil
 }
 
@@ -313,11 +335,11 @@ func (l *logWriter) millRunOnce() error {
 			return err
 		}
 
-		var compress, remove []logInfo
+		var compress, remove []fs.FileInfo
 
 		if l.maxCount > 0 && l.maxCount < len(files) {
 			preserved := make(map[string]bool)
-			var remaining []logInfo
+			var remaining []fs.FileInfo
 			for _, f := range files {
 				// Only count the uncompressed log file or the
 				// compressed log file, not both.
@@ -339,9 +361,9 @@ func (l *logWriter) millRunOnce() error {
 			diff := time.Duration(int64(24*time.Hour) * int64(l.maxAge))
 			cutoff := currentTime().Add(-1 * diff)
 
-			var remaining []logInfo
+			var remaining []fs.FileInfo
 			for _, f := range files {
-				if f.timestamp.Before(cutoff) {
+				if f.ModTime().Before(cutoff) {
 					remove = append(remove, f)
 				} else {
 					remaining = append(remaining, f)
@@ -400,12 +422,12 @@ func (l *logWriter) mill() {
 
 // oldLogFiles returns the list of backup log files stored in the same
 // directory as the current log file, sorted by ModTime
-func (l *logWriter) oldLogFiles() ([]logInfo, error) {
+func (l *logWriter) oldLogFiles() ([]fs.FileInfo, error) {
 	files, err := os.ReadDir(l.dir)
 	if err != nil {
 		return nil, fmt.Errorf("can't read log file directory: %s", err)
 	}
-	logFiles := []logInfo{}
+	logFiles := []fs.FileInfo{}
 
 	prefix, ext := l.prefixAndExt()
 
@@ -414,12 +436,13 @@ func (l *logWriter) oldLogFiles() ([]logInfo, error) {
 			continue
 		}
 		fi, _ := f.Info()
-		if t, err := l.timeFromName(f.Name(), prefix, ext); err == nil {
-			logFiles = append(logFiles, logInfo{t, fi})
-			continue
-		}
-		if t, err := l.timeFromName(f.Name(), prefix, ext+string(l.compressType)); err == nil {
-			logFiles = append(logFiles, logInfo{t, fi})
+		// if t, err := l.timeFromName(f.Name(), prefix, ext); err == nil {
+		// 	logFiles = append(logFiles, logInfo{t, fi})
+		// 	continue
+		// }
+		fname := fi.Name()
+		if strings.HasPrefix(fname, prefix) && (strings.HasSuffix(fname, ext) || strings.HasSuffix(fname, ext+string(l.compressType))) {
+			logFiles = append(logFiles, fi)
 			continue
 		}
 		// error parsing means that the suffix at the end was not generated
@@ -429,20 +452,6 @@ func (l *logWriter) oldLogFiles() ([]logInfo, error) {
 	sort.Sort(byFormatTime(logFiles))
 
 	return logFiles, nil
-}
-
-// timeFromName extracts the formatted time from the filename by stripping off
-// the filename's prefix and extension. This prevents someone's filename from
-// confusing time.parse.
-func (l *logWriter) timeFromName(filename, prefix, ext string) (time.Time, error) {
-	if !strings.HasPrefix(filename, prefix) {
-		return time.Time{}, errors.New("mismatched prefix")
-	}
-	if !strings.HasSuffix(filename, ext) {
-		return time.Time{}, errors.New("mismatched extension")
-	}
-	ts := filename[len(prefix) : len(filename)-len(ext)]
-	return time.Parse(l.layout, ts)
 }
 
 // prefixAndExt returns the filename part and extension part from the logWriter's
@@ -566,18 +575,11 @@ func xzcompress(src, dst string) (err error) {
 	return nil
 }
 
-// logInfo is a convenience struct to return the filename and its embedded
-// timestamp.
-type logInfo struct {
-	timestamp time.Time
-	os.FileInfo
-}
-
 // byFormatTime sorts by newest time formatted in the name.
-type byFormatTime []logInfo
+type byFormatTime []os.FileInfo
 
 func (b byFormatTime) Less(i, j int) bool {
-	return b[i].timestamp.After(b[j].timestamp)
+	return b[i].ModTime().After(b[j].ModTime())
 }
 
 func (b byFormatTime) Swap(i, j int) {
