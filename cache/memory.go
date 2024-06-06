@@ -128,6 +128,20 @@ func (m *Memory) SetByEmpty(key, val any) bool {
 	}
 	return flag
 }
+func (m *Memory) SetByEmptyExpire(key, val any, expire time.Duration) bool {
+	t := &item{
+		value:   val,
+		sliding: 0,
+		timer:   m.afterDel(expire, key),
+	}
+	_, flag := m.items.LoadOrStore(key, t)
+	if flag {
+		t.timer.Stop()
+	} else {
+		atomic.AddInt32(&m.Count, 1)
+	}
+	return flag
+}
 func (m *Memory) SetByExpire(key, val any, expire time.Duration) {
 	item := &item{
 		value:   val,
