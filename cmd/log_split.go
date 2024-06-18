@@ -73,9 +73,6 @@ type logWriter struct {
 }
 
 var (
-	// currentTime exists so it can be mocked out by tests.
-	currentTime = time.Now
-
 	// os_Stat exists so it can be mocked out by tests.
 	osStat = os.Stat
 
@@ -272,9 +269,8 @@ func (l *logWriter) backupName(name string) string {
 	filename := filepath.Base(name)
 	ext := filepath.Ext(filename)
 	prefix := filename[:len(filename)-len(ext)]
-	t := currentTime()
 
-	timestamp := t.Format("20060102")
+	timestamp := l.ctime.Format("20060102")
 
 	for {
 		l.pos++
@@ -359,7 +355,7 @@ func (l *logWriter) millRunOnce() error {
 		}
 		if l.maxAge > 0 {
 			diff := time.Duration(int64(24*time.Hour) * int64(l.maxAge))
-			cutoff := currentTime().Add(-1 * diff)
+			cutoff := time.Now().Add(-1 * diff)
 
 			var remaining []fs.FileInfo
 			for _, f := range files {
