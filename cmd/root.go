@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -33,7 +32,7 @@ var (
 	Version   = "0.0.1"
 	DEBUG     = false
 	svcFunc   func([]string)
-	quit, sig = make(chan os.Signal), make(chan os.Signal)
+	quit, sig = make(chan os.Signal), make(chan os.Signal, 1)
 	defOpt    = &cmdOpt{
 		regSvc:       false,
 		logPath:      tools.CurrentDir() + "/log/",
@@ -80,10 +79,10 @@ var RootCmd = &cobra.Command{
 			s := <-sig
 			select {
 			case quit <- s:
-				log.Println("wait quit")
+				logrus.Println("wait quit")
 				wg.Wait()
 			case <-time.After(10 * time.Millisecond):
-				log.Println("system quit")
+				logrus.Println("system quit")
 			}
 		}
 	},
@@ -141,6 +140,7 @@ func Quit() {
 // mainFunc 主函数
 // regSvc 是否注册服务
 func Execute(mainFunc func([]string), opts ...Option) {
+	logrus.SetOutput(os.Stdout)
 	if DEBUG {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
@@ -159,8 +159,22 @@ func Execute(mainFunc func([]string), opts ...Option) {
 	}
 	// SetLogPath(defOpt.logPath)
 	defOpt.initLog()
+
+	file, err := os.OpenFile("panic.err", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "无法打开文件: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// 使用 syscall 重定向标准错误输出
+	if err := syscall.Dup2(int(file.Fd()), int(os.Stderr.Fd())); err != nil {
+		fmt.Fprintf(os.Stderr, "重定向错误输出失败: %v\n", err)
+		return
+	}
+
 	if err := RootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "root.execute:"+err.Error())
 		os.Exit(1)
 	}
 }

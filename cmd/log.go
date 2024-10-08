@@ -94,7 +94,6 @@ func getLogPath(args []string) (string, error) {
 
 func (opt *cmdOpt) initLog() {
 	logPath := opt.logPath + tools.CurrentName()
-
 	dbgWrite := NewSplit(logPath+".dbg", func(l *logWriter) {
 		l.maxAge = opt.maxAge
 		l.maxCount = opt.maxCount

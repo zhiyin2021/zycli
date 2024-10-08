@@ -270,8 +270,11 @@ func (l *logWriter) backupName(name string) string {
 	ext := filepath.Ext(filename)
 	prefix := filename[:len(filename)-len(ext)]
 
+	if l.ctime.Day() != time.Now().Day() {
+		l.ctime = time.Now()
+		l.pos = 0
+	}
 	timestamp := l.ctime.Format("20060102")
-
 	for {
 		l.pos++
 		logPath := filepath.Join(dir, fmt.Sprintf("%s_%s.%d%s", prefix, timestamp, l.pos, ext))

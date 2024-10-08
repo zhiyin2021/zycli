@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime/debug"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/zhiyin2021/zycli/cmd"
@@ -19,7 +20,7 @@ type Config struct {
 var config Config
 
 func main() {
-	cmd.Execute(run)
+	cmd.Execute(run, cmd.WithRegSvc())
 }
 func run(args []string) {
 	initConfig()
@@ -40,9 +41,10 @@ func helloworld(ctx resp.Context) error {
 	return ctx.String(200, "hello world")
 }
 func testPanic(ctx resp.Context) error {
-	TryGO(func() {
+	go func() {
+		time.Sleep(500 * time.Millisecond)
 		panic("test panic")
-	})
+	}()
 	return ctx.String(200, "hello world")
 }
 func initConfig() {
