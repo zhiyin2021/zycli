@@ -40,7 +40,7 @@ var (
 		maxSize:      1000,
 		maxAge:       90,
 		maxCount:     0,
-		compressType: CT_XZ,
+		compressType: CT_GZ,
 		layout:       "060102_150405_000",
 	}
 )
@@ -168,7 +168,7 @@ func Execute(mainFunc func([]string), opts ...Option) {
 	defer file.Close()
 
 	// 使用 syscall 重定向标准错误输出
-	if err := syscall.Dup2(int(file.Fd()), int(os.Stderr.Fd())); err != nil {
+	if err := redirectErr(file); err != nil {
 		fmt.Fprintf(os.Stderr, "重定向错误输出失败: %v\n", err)
 		return
 	}

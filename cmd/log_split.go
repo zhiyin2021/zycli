@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"compress/gzip"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ulikunitz/xz"
 	"github.com/zhiyin2021/zycli/tools"
 )
 
@@ -475,103 +474,104 @@ func (l *logWriter) compress(src, dst string) (err error) {
 // compressLogFile compresses the given log file, removing the
 // uncompressed log file if successful.
 func gzcompress(src, dst string) (err error) {
-	f, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("failed to open log file: %v", err)
-	}
-	defer f.Close()
+	return exec.Command("gzip", src).Start()
+	// f, err := os.Open(src)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to open log file: %v", err)
+	// }
+	// defer f.Close()
 
-	fi, err := osStat(src)
-	if err != nil {
-		return fmt.Errorf("failed to stat log file: %v", err)
-	}
+	// fi, err := osStat(src)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to stat log file: %v", err)
+	// }
 
-	if err := tools.Chown(dst, fi); err != nil {
-		return fmt.Errorf("failed to chown compressed log file: %v", err)
-	}
+	// if err := tools.Chown(dst, fi); err != nil {
+	// 	return fmt.Errorf("failed to chown compressed log file: %v", err)
+	// }
 
-	// If this file already exists, we presume it was created by
-	// a previous attempt to compress the log file.
-	gzf, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fi.Mode())
-	if err != nil {
-		return fmt.Errorf("failed to open compressed log file: %v", err)
-	}
-	defer gzf.Close()
+	// // If this file already exists, we presume it was created by
+	// // a previous attempt to compress the log file.
+	// gzf, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fi.Mode())
+	// if err != nil {
+	// 	return fmt.Errorf("failed to open compressed log file: %v", err)
+	// }
+	// defer gzf.Close()
 
-	gz := gzip.NewWriter(gzf)
+	// gz := gzip.NewWriter(gzf)
 
-	defer func() {
-		if err != nil {
-			os.Remove(dst)
-			err = fmt.Errorf("failed to compress log file: %v", err)
-		}
-	}()
+	// defer func() {
+	// 	if err != nil {
+	// 		os.Remove(dst)
+	// 		err = fmt.Errorf("failed to compress log file: %v", err)
+	// 	}
+	// }()
 
-	if _, err := io.Copy(gz, f); err != nil {
-		return err
-	}
-	if err := gz.Close(); err != nil {
-		return err
-	}
-	if err := gzf.Close(); err != nil {
-		return err
-	}
+	// if _, err := io.Copy(gz, f); err != nil {
+	// 	return err
+	// }
+	// if err := gz.Close(); err != nil {
+	// 	return err
+	// }
+	// if err := gzf.Close(); err != nil {
+	// 	return err
+	// }
 
-	if err := f.Close(); err != nil {
-		return err
-	}
-	if err := os.Remove(src); err != nil {
-		return err
-	}
+	// if err := f.Close(); err != nil {
+	// 	return err
+	// }
+	// if err := os.Remove(src); err != nil {
+	// 	return err
+	// }
 
-	return nil
+	// return nil
 }
 func xzcompress(src, dst string) (err error) {
+	return exec.Command("xz", "-z", src).Start()
+	// f, err := os.Open(src)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to open log file: %v", err)
+	// }
+	// defer func() {
+	// 	f.Close()
+	// 	if err == nil {
+	// 		os.Remove(src)
+	// 	}
+	// }()
+	// fi, err := osStat(src)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to stat log file: %v", err)
+	// }
 
-	f, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("failed to open log file: %v", err)
-	}
-	defer func() {
-		f.Close()
-		if err == nil {
-			os.Remove(src)
-		}
-	}()
-	fi, err := osStat(src)
-	if err != nil {
-		return fmt.Errorf("failed to stat log file: %v", err)
-	}
+	// if err := tools.Chown(dst, fi); err != nil {
+	// 	return fmt.Errorf("failed to chown compressed log file: %v", err)
+	// }
 
-	if err := tools.Chown(dst, fi); err != nil {
-		return fmt.Errorf("failed to chown compressed log file: %v", err)
-	}
-
-	// If this file already exists, we presume it was created by
-	// a previous attempt to compress the log file.
-	xzf, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fi.Mode())
-	if err != nil {
-		return fmt.Errorf("failed to open compressed log file: %v", err)
-	}
-	defer func() {
-		xzf.Close()
-		if err != nil {
-			os.Remove(dst)
-			err = fmt.Errorf("failed to compress log file: %v", err)
-		}
-	}()
-	// const text = "The quick brown fox jumps over the lazy dog.\n"
-	// var buf bytes.Buffer
-	// // compress text
-	xzFile, err := xz.NewWriter(xzf)
-	if err != nil {
-		return err
-	}
-	defer xzFile.Close()
-	if _, err := io.Copy(xzFile, f); err != nil {
-		return err
-	}
-	return nil
+	// // If this file already exists, we presume it was created by
+	// // a previous attempt to compress the log file.
+	// xzf, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fi.Mode())
+	// if err != nil {
+	// 	return fmt.Errorf("failed to open compressed log file: %v", err)
+	// }
+	// defer func() {
+	// 	xzf.Close()
+	// 	if err != nil {
+	// 		os.Remove(dst)
+	// 		err = fmt.Errorf("failed to compress log file: %v", err)
+	// 	}
+	// }()
+	// // const text = "The quick brown fox jumps over the lazy dog.\n"
+	// // var buf bytes.Buffer
+	// // // compress text
+	// xzFile, err := xz.NewWriter(xzf)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer xzFile.Close()
+	// if _, err := io.Copy(xzFile, f); err != nil {
+	// 	return err
+	// }
+	// return nil
 }
 
 // byFormatTime sorts by newest time formatted in the name.
