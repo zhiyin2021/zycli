@@ -9,9 +9,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/zhiyin2021/zycli/tools"
+	"github.com/zhiyin2021/zycli/tools/logger"
+	"go.uber.org/zap/zapcore"
 )
 
 type cmdOpt struct {
@@ -53,7 +54,7 @@ var RootCmd = &cobra.Command{
 		fmt.Printf("--------------------\n  app: %s \n  ver: %s \n--------------------\n", tools.CurrentName(), Version)
 		if svcFunc != nil {
 			if !DEBUG {
-				DEBUG = tools.FileExist(tools.CurrentName() + ".dbg")
+				DEBUG = tools.FileExists(tools.CurrentName() + ".dbg")
 			}
 			if IsRuning() {
 				fmt.Println("already running")
@@ -79,10 +80,10 @@ var RootCmd = &cobra.Command{
 			s := <-sig
 			select {
 			case quit <- s:
-				logrus.Println("wait quit")
+				logger.Println("wait quit")
 				wg.Wait()
 			case <-time.After(10 * time.Millisecond):
-				logrus.Println("system quit")
+				logger.Println("system quit")
 			}
 		}
 	},
@@ -140,9 +141,9 @@ func Quit() {
 // mainFunc 主函数
 // regSvc 是否注册服务
 func Execute(mainFunc func([]string), opts ...Option) {
-	logrus.SetOutput(os.Stdout)
+
 	if DEBUG {
-		logrus.SetLevel(logrus.DebugLevel)
+		logger.SetLevel(zapcore.DebugLevel)
 	}
 	if mainFunc == nil {
 		panic("MainFunc is nil")
@@ -157,22 +158,12 @@ func Execute(mainFunc func([]string), opts ...Option) {
 	if defOpt.regSvc {
 		addSvc()
 	}
-	// SetLogPath(defOpt.logPath)
+
 	defOpt.initLog()
 
-	file, err := os.OpenFile("panic.err", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "无法打开文件: %v\n", err)
-		return
+	if f := redirectPanic(); f != nil {
+		defer f.Close()
 	}
-	defer file.Close()
-
-	// 使用 syscall 重定向标准错误输出
-	if err := redirectErr(file); err != nil {
-		fmt.Fprintf(os.Stderr, "重定向错误输出失败: %v\n", err)
-		return
-	}
-
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "root.execute:"+err.Error())
 		os.Exit(1)
@@ -187,20 +178,15 @@ var dbgCmd = &cobra.Command{
 		msg, err := SendMsgToIPC("dbg")
 		if err != nil {
 			if err.Error() != "EOF" {
-				logrus.Errorln("please check application not running:", err)
+				logger.Errorln("please check application not running:", err)
 			}
 		} else {
-			logrus.Infoln(msg)
+			logger.Infoln(msg)
 		}
 	},
 }
 
 func init() {
-	logFmt := &logrus.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "150405.0000", //时间格式化
-	}
-	logrus.SetFormatter(logFmt)
 	RootCmd.PersistentFlags().BoolVar(&DEBUG, "debug", false, "start with debug mode")
 	RootCmd.AddCommand(dbgCmd)
 }
@@ -208,7 +194,7 @@ func init() {
 func OnPanic(call func(any, string)) {
 	if err := recover(); err != nil {
 		stack := string(debug.Stack())
-		logrus.Panic(err, "\n", stack)
+		logger.Errorln(err, "\n", stack)
 		if call != nil {
 			call(err, stack)
 		}

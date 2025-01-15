@@ -17,7 +17,7 @@ func LoadConfig[T any](filename string, unmarshal func([]byte, any) error) (T, e
 
 func readCfg(filename string) ([]byte, error) {
 	path := CurrentDir() + filename
-	if FileExist(path) {
+	if FileExists(path) {
 		return os.ReadFile(path)
 	}
 	return os.ReadFile(filename)

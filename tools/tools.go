@@ -3,15 +3,17 @@ package tools
 import (
 	"bytes"
 	"crypto/md5"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"reflect"
+	"strconv"
 	"strings"
 
-	"github.com/gofrs/uuid"
-	"github.com/sirupsen/logrus"
+	"github.com/google/uuid"
+	"github.com/zhiyin2021/zycli/tools/logger"
 )
 
 func If[T any](condition bool, trueVal, falseVal T) T {
@@ -21,29 +23,26 @@ func If[T any](condition bool, trueVal, falseVal T) T {
 	return falseVal
 }
 
-func FileExist(path string) bool {
+func FileExists(path string) bool {
 	_, err := os.Lstat(path)
 	return !os.IsNotExist(err)
 }
 
 func GenId() string {
-	id, _ := uuid.NewV4()
-	return strings.ReplaceAll(id.String(), "-", "")
+	return strings.ReplaceAll(uuid.New().String(), "-", "")
 }
 
 // RunCmd 执行命令,返回内容
 func RunCmd(name string, args ...string) string {
-	// logrus.Info("cmd", "runCmd:", name)
-	// arg := append([]string{"-c"}, args...)
 	cmd := exec.Command(name, args...)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
 	res := out.String()
 	if err != nil {
-		logrus.Errorln("RunCmd", args, err)
+		logger.Errorln("RunCmd", args, err)
 	} else {
-		logrus.Infoln("RunCmd", args, "=>", res)
+		logger.Infoln("RunCmd", args, "=>", res)
 	}
 	return res
 }
@@ -51,7 +50,7 @@ func GetIpList() []string {
 	ips := []string{}
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		logrus.Error("getIp ", err)
+		logger.Errorln("getIp ", err)
 	} else {
 		for _, address := range addrs {
 			// 检查ip地址判断是否回环地址
@@ -121,4 +120,111 @@ func toi64(n interface{}) int64 {
 		return n
 	}
 	return 0
+}
+
+func AtoI(s string) int {
+	s = strings.TrimSpace(s)
+	n, e := strconv.Atoi(s)
+	if e != nil {
+		return 0
+	}
+	return n
+}
+func AtoU64(s string) uint64 {
+	s = strings.TrimSpace(s)
+	n, e := strconv.ParseUint(s, 0, 0)
+	if e != nil {
+		return 0
+	}
+	return n
+}
+func AtoI64(s string) int64 {
+	n, e := strconv.ParseInt(s, 0, 0)
+	if e != nil {
+		return 0
+	}
+	return n
+}
+func AtoF(s string) float64 {
+	n, e := strconv.ParseFloat(s, 64)
+	if e != nil {
+		return 0
+	}
+	return n
+}
+func ToStr(s any) string {
+	return fmt.Sprintf("%v", s)
+}
+
+func IsEmpty(content string) bool {
+	return strings.TrimSpace(content) == ""
+}
+
+// 判断切片中是否有字符串
+func SliceContains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}
+
+func JsonStr(data any) string {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+func JsonMap(body []byte) map[string]any {
+	var data map[string]any
+	err := json.Unmarshal(body, &data)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+func As[T any](v any) (o T) {
+	if v1, ok := v.(T); ok {
+		return v1
+	}
+	return o
+}
+
+func MapItem[T any](m map[string]string, key string, def T) (ret T) {
+	ret = def
+	if val, ok := m[key]; ok {
+		v := reflect.ValueOf(&ret).Elem()
+		switch v.Kind() {
+		case reflect.String:
+			v.SetString(val)
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if n, err := strconv.ParseInt(val, 0, 0); err == nil {
+				v.SetInt(n)
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			if n, err := strconv.ParseUint(val, 0, 0); err == nil {
+				v.SetUint(n)
+			}
+		}
+	}
+	return
+}
+func RemoveElement(data []int32, target int32) ([]int32, bool) {
+	index := -1
+	// 查找目标值的索引
+	for i, v := range data {
+		if v == target {
+			index = i
+			break
+		}
+	}
+
+	// 如果找到，删除该元素
+	if index != -1 {
+		data = append(data[:index], data[index+1:]...)
+		return data, true
+	}
+	return data, false // 没有找到目标值
 }

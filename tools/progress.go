@@ -14,17 +14,6 @@ type ProgressBar struct {
 	mutex   sync.Mutex
 }
 
-// func main() {
-// 	var bar Bar
-// 	bar.NewOption(0, 100)
-// 	//bar.NewOptionWithGraph(0, 100, "#")
-// 	for i := 0; i <= 100; i++ {
-// 		time.Sleep(100 * time.Millisecond)
-// 		bar.Play(int64(i))
-// 	}
-// 	bar.Finish()
-// }
-
 func (bar *ProgressBar) NewOption(start, total int64) {
 	bar.mutex.Lock()
 	defer bar.mutex.Unlock()

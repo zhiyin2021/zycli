@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"testing"
 	"time"
 
-	"github.com/zhiyin2021/zycli/cache"
 	"github.com/zhiyin2021/zycli/tools"
+	"github.com/zhiyin2021/zycli/tools/cache"
 )
 
 func TestQuickSort(t *testing.T) {
@@ -30,7 +31,7 @@ func TestQuickSortStruct(t *testing.T) {
 }
 
 func TestCache(t *testing.T) {
-	c := cache.NewMemory(time.Second * 5)
+	c := cache.NewMemory(context.Background())
 	c.SetBySliding("a", "b", time.Second*5)
 	for i := 0; i < 11; i++ {
 		time.Sleep(time.Second)

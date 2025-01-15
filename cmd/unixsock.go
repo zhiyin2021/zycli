@@ -8,8 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/zhiyin2021/zycli/tools"
+	"github.com/zhiyin2021/zycli/tools/logger"
+	"go.uber.org/zap"
 )
 
 var (
@@ -39,9 +40,9 @@ func startUnixSock() error {
 	ulistener, err = net.Listen("unix", defOpt.ipcPath)
 	if err != nil {
 		if isErrorAddressAlreadyInUse(err) {
-			logrus.Errorf("please check application already running.")
+			logger.Errorf("please check application already running.")
 		} else {
-			logrus.Errorln("usock", err)
+			logger.Errorln("usock", err)
 		}
 		return err
 	}
@@ -60,19 +61,19 @@ func startUnixSock() error {
 				if err != nil {
 					return
 				}
-				logrus.Println("uread:", msg)
+				logger.Println("uread:", msg)
 				message := string(msg[:len(msg)-1])
 				if message == "dbg" {
 					DEBUG = !DEBUG
 					if DEBUG {
-						logrus.SetLevel(logrus.DebugLevel)
+						logger.SetLevel(zap.DebugLevel)
 						conn.Write([]byte("debug true\x00"))
 					} else {
-						logrus.SetLevel(logrus.InfoLevel)
-						logrus.Println("debug false")
+						logger.SetLevel(zap.InfoLevel)
+						logger.Println("debug false")
 						conn.Write([]byte("debug false\x00"))
 					}
-					logrus.Debugln("debug =>", DEBUG)
+					logger.Debugln("debug =>", DEBUG)
 				} else if IPCMsg != nil {
 					rest := IPCMsg(message)
 					conn.Write([]byte(rest + "\x00"))

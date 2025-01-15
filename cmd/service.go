@@ -5,9 +5,9 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/zhiyin2021/zycli/tools"
+	"github.com/zhiyin2021/zycli/tools/logger"
 )
 
 var (
@@ -26,7 +26,7 @@ var svcCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-		logrus.Println("backgroup started => ", daemoCmd.Process.Pid)
+		logger.Println("backgroup started => ", daemoCmd.Process.Pid)
 	},
 }
 var installCmd = &cobra.Command{
@@ -43,16 +43,16 @@ var installCmd = &cobra.Command{
 
 		err := os.WriteFile("/etc/systemd/system/"+fname+".service", []byte(data), 0644)
 		if err == nil {
-			logrus.Println("generate service success")
+			logger.Println("generate service success")
 			if err = run("systemctl", "daemon-reload"); err == nil {
-				logrus.Println("reload service success")
+				logger.Println("reload service success")
 				ctlSvc("enable")
 				if err = ctlSvc("start"); err == nil {
 					return
 				}
 			}
 		}
-		logrus.Println("service install error", err)
+		logger.Println("service install error", err)
 	},
 }
 var uninstallCmd = &cobra.Command{
@@ -115,9 +115,9 @@ func run(name string, arg ...string) error {
 func ctlSvc(ctl string) error {
 	err := run("systemctl", ctl, tools.CurrentName()+".service")
 	if err == nil {
-		logrus.Println(ctl + " service success")
+		logger.Println(ctl + " service success")
 	} else {
-		logrus.Println(ctl+" service error", err)
+		logger.Println(ctl+" service error", err)
 	}
 	return err
 }

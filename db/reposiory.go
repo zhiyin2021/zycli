@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/sirupsen/logrus"
 	"github.com/zhiyin2021/zycli/cmd"
 	"gorm.io/gorm"
 )
@@ -251,15 +250,8 @@ func Add(model IEntities) (err error) {
 
 type Repository[T IEntities] struct {
 	runOne sync.Once
-	log    *logrus.Entry
 }
 
-func (r *Repository[T]) Log() *logrus.Entry {
-	r.runOne.Do(func() {
-		r.log = logrus.WithFields(logrus.Fields{})
-	})
-	return r.log //.Debug()
-}
 func (r *Repository[T]) ToPageList(page, limit int, options ...Option) (o []T, total int64, err error) {
 	return ToPageList[T](page, limit, options...)
 }

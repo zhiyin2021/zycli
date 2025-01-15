@@ -334,7 +334,6 @@ func (l *logWriter) millRunOnce() error {
 		}
 
 		var compress, remove []fs.FileInfo
-
 		if l.maxCount > 0 && l.maxCount < len(files) {
 			preserved := make(map[string]bool)
 			var remaining []fs.FileInfo

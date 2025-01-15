@@ -6,14 +6,14 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/zhiyin2021/zycli/tools"
+	"github.com/zhiyin2021/zycli/tools/logger"
 )
 
 var logCmd = &cobra.Command{
 	Use:   "log",
-	Short: "log cat, log vi, log ls, log [cmd] yyyyMMdd",
+	Short: "log cat,log ls, log [cmd] yyyyMMdd",
 	Long:  `log3 service`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if logPath, err := getLogPath(args); err == nil {
@@ -31,8 +31,8 @@ var catLogCmd = &cobra.Command{
 	Long:  `cat log `,
 	Run: func(cmd *cobra.Command, args []string) {
 		if logPath, _ := getLogPath(args); logPath != "" {
-			if !tools.FileExist(logPath) {
-				cc := exec.Command("xzcat", logPath+".xz")
+			if !tools.FileExists(logPath) {
+				cc := exec.Command("zcat", logPath+".gz")
 				cc.Stdout = os.Stdout
 				//异步启动子进程
 				cc.Run()
@@ -42,21 +42,6 @@ var catLogCmd = &cobra.Command{
 				//异步启动子进程
 				cc.Run()
 			}
-		}
-	},
-}
-
-var vimLogCmd = &cobra.Command{
-	Use:   "vi",
-	Short: "vi",
-	Long:  `vim log `,
-	Run: func(cmd *cobra.Command, args []string) {
-		if logPath, err := getLogPath(args); err == nil {
-			cc := exec.Command("vi", logPath)
-			cc.Stdout = os.Stdout
-			cc.Stdin = os.Stdin
-			//异步启动子进程
-			cc.Run()
 		}
 	},
 }
@@ -85,7 +70,7 @@ func getLogPath(args []string) (string, error) {
 			return logName, errors.New("view Historical Log Format yyyyMMdd")
 		}
 	}
-	if !tools.FileExist(logName) {
+	if !tools.FileExists(logName) {
 		fmt.Println("log file not exist", logName)
 		return logName, errors.New("log file not exists " + logName)
 	}
@@ -94,40 +79,17 @@ func getLogPath(args []string) (string, error) {
 
 func (opt *cmdOpt) initLog() {
 	logPath := opt.logPath + tools.CurrentName()
-	dbgWrite := NewSplit(logPath+".dbg", func(l *logWriter) {
-		l.maxAge = opt.maxAge
-		l.maxCount = opt.maxCount
-		l.compressType = opt.compressType
-	}, OptMaxSize(opt.maxSize))
+
 	logWrite := NewSplit(logPath+".log", func(l *logWriter) {
 		l.maxAge = opt.maxAge
 		l.maxCount = opt.maxCount
 		l.compressType = opt.compressType
 	}, OptMaxSize(opt.maxSize))
 
-	// logrus.SetOutput(logWrite)
-	writeMap := tools.WriterMap{
-		logrus.DebugLevel: dbgWrite,
-		logrus.InfoLevel:  logWrite,
-		logrus.WarnLevel:  logWrite,
-		logrus.ErrorLevel: logWrite,
-		logrus.FatalLevel: logWrite,
-		logrus.PanicLevel: logWrite,
-	}
-
-	lfHook := tools.NewHook(writeMap, &logrus.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "150405.0000",
-		// CallerPrettyfier: func(f *runtime.Frame) (function string, file string) {
-		// 	return f.Function, ""
-		// },
-	})
-	// logrus.SetReportCaller(true)
-	logrus.AddHook(lfHook)
+	logger.SetLogger(logWrite)
 }
 func init() {
 	logCmd.AddCommand(catLogCmd)
-	logCmd.AddCommand(vimLogCmd)
 	logCmd.AddCommand(lsLogCmd)
 	RootCmd.AddCommand(logCmd)
 }
