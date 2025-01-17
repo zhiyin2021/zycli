@@ -68,7 +68,10 @@ func (m *Memory) setItem(key, val any, sliding time.Duration, expire time.Durati
 	item := &item{
 		value:      val,
 		sliding:    sliding,
-		expiration: NowMicr().Add(expire).UnixMicro(),
+		expiration: 0,
+	}
+	if expire > 0 {
+		item.expiration = NowMicr().Add(expire).UnixMicro()
 	}
 	m.items[key] = item
 	return item
@@ -77,7 +80,7 @@ func (m *Memory) del(key any) any {
 	item, ok := m.items[key]
 	if ok {
 		delete(m.items, key)
-		return item
+		return item.value
 	}
 	return nil
 }
@@ -98,8 +101,8 @@ func (m *Memory) GetBy(check func(any) bool) any {
 		m.Lock()
 		defer m.Unlock()
 		for _, v := range m.items {
-			if check(v) {
-				return v
+			if check(v.value) {
+				return v.value
 			}
 		}
 	}
@@ -150,7 +153,6 @@ func (m *Memory) SetBySliding(key, val any, expire time.Duration) {
 func (m *Memory) Set(key, val any) {
 	m.Lock()
 	defer m.Unlock()
-	m.del(key)
 	m.setItem(key, val, 0, 0)
 }
 
@@ -227,7 +229,7 @@ func (m *Memory) Count(callback func(any, any) bool) int {
 	defer m.Unlock()
 	count := 0
 	for k, v := range m.items {
-		if callback != nil && callback(k, v) {
+		if callback != nil && callback(k, v.value) {
 			count++
 		}
 	}
@@ -252,23 +254,24 @@ func (m *Memory) Keys() []any {
 func (m *Memory) List() []any {
 	m.Lock()
 	defer m.Unlock()
+	var val []any
+	fmt.Printf("memory.list:%d,%p", len(m.items), m)
 	if count := len(m.items); count > 0 {
-		keys := make([]any, count)
+		val = make([]any, count)
 		i := 0
 		for _, v := range m.items {
-			keys[i] = v
+			val[i] = v.value
 			i++
 		}
-		return keys
 	}
-	return []any{}
+	return val
 }
 
 func (m *Memory) Range(callback func(any, any) bool) {
 	m.Lock()
 	defer m.Unlock()
 	for k, v := range m.items {
-		if callback != nil && !callback(k, v) {
+		if callback != nil && !callback(k, v.value) {
 			return
 		}
 	}
