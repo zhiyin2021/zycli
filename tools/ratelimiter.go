@@ -22,6 +22,7 @@ type SideRateLimiter struct {
 	tokens    []time.Time
 	record    map[int64]*subitem
 	chToken   chan struct{}
+	last      *subitem
 }
 
 func NewSideRateLimiter(ctx context.Context, window time.Duration, maxTokens int) *SideRateLimiter {
@@ -69,11 +70,13 @@ func (rl *SideRateLimiter) Allow() (flag bool) {
 	case rl.chToken <- struct{}{}:
 		now := cache.NowSec()
 		rl.tokens = append(rl.tokens, now)
-		rl.calcCount(now).Accept++
+		rl.last = rl.calcCount(now)
+		rl.last.Accept++
 		flag = true
 	default:
 		now := cache.NowSec()
-		rl.calcCount(now).Reject++
+		rl.last = rl.calcCount(now)
+		rl.last.Reject++
 		flag = false
 	}
 	return flag
@@ -88,7 +91,9 @@ func (rl *SideRateLimiter) wait() {
 	rl.chToken <- struct{}{}
 	now := cache.NowSec()
 	rl.tokens = append(rl.tokens, now)
-	rl.calcCount(now).Accept++
+
+	rl.last = rl.calcCount(now)
+	rl.last.Accept++
 }
 
 func (rl *SideRateLimiter) CheckWait() time.Duration {
@@ -146,4 +151,13 @@ func (rl *SideRateLimiter) Total() int {
 func (m *subitem) String() string {
 	buf, _ := json.Marshal(m)
 	return string(buf)
+}
+
+func (rl *SideRateLimiter) Last() subitem {
+	rl.mutex.Lock()
+	defer rl.mutex.Unlock()
+	if rl.last == nil {
+		return subitem{Tm: cache.NowSec().Unix(), Accept: 0, Reject: 0}
+	}
+	return subitem{Tm: rl.last.Tm, Accept: rl.last.Accept, Reject: rl.last.Reject}
 }
