@@ -45,17 +45,17 @@ func (m *Memory) runing(ctx context.Context) {
 				m.Lock()
 				defer m.Unlock()
 				now := NowMicr().UnixMicro()
-				for key, item := range m.items {
-					if item.expiration > 0 && item.expiration < now {
-						if item.f != nil {
-							go func() {
+				for key, tmp := range m.items {
+					if tmp.expiration > 0 && tmp.expiration < now {
+						if tmp.f != nil {
+							go func(it *item) {
 								defer func() {
 									if e := recover(); e != nil {
 										logger.Errorln("memory.cache.del.err", e)
 									}
 								}()
-								item.f(item.value)
-							}()
+								it.f(it.value)
+							}(tmp)
 						}
 						delete(m.items, key)
 					}
@@ -255,7 +255,6 @@ func (m *Memory) List() []any {
 	m.Lock()
 	defer m.Unlock()
 	var val []any
-	fmt.Printf("memory.list:%d,%p", len(m.items), m)
 	if count := len(m.items); count > 0 {
 		val = make([]any, count)
 		i := 0

@@ -16,9 +16,10 @@ import (
 )
 
 type cmdOpt struct {
-	regSvc  bool
-	logPath string
-	ipcPath string
+	regSvc    bool
+	logPath   string
+	ipcPath   string
+	logToFile bool
 	// 日志相关
 	maxSize      int64
 	maxAge       int
@@ -41,6 +42,7 @@ var (
 		maxSize:      1000,
 		maxAge:       90,
 		maxCount:     0,
+		logToFile:    false,
 		compressType: CT_GZ,
 		layout:       "060102_150405_000",
 	}
@@ -98,6 +100,7 @@ func WithLogPath(path string) Option {
 func WithRegSvc() Option {
 	return func(opt *cmdOpt) {
 		opt.regSvc = true
+		opt.logToFile = true
 	}
 }
 
@@ -158,9 +161,9 @@ func Execute(mainFunc func([]string), opts ...Option) {
 	if defOpt.regSvc {
 		addSvc()
 	}
-
-	defOpt.initLog()
-
+	if defOpt.logToFile {
+		defOpt.initLog()
+	}
 	if f := redirectPanic(); f != nil {
 		defer f.Close()
 	}
