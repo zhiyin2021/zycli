@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -33,6 +34,11 @@ type Memory struct {
 
 func (*Memory) String() string {
 	return "memory"
+}
+func doRecover() {
+	if err := recover(); err != nil {
+		logger.Errorw(string(debug.Stack()), "panic", err)
+	}
 }
 func (m *Memory) runing(ctx context.Context) {
 	tmr := time.NewTicker(time.Millisecond)
@@ -227,9 +233,10 @@ func (m *Memory) calculate(key any, num int) error {
 func (m *Memory) Count(callback func(any, any) bool) int {
 	m.Lock()
 	defer m.Unlock()
+	defer doRecover()
 	count := 0
 	for k, v := range m.items {
-		if callback != nil && callback(k, v.value) {
+		if v.value != nil && callback != nil && callback(k, v.value) {
 			count++
 		}
 	}
@@ -239,6 +246,7 @@ func (m *Memory) Count(callback func(any, any) bool) int {
 func (m *Memory) Keys() []any {
 	m.Lock()
 	defer m.Unlock()
+	defer doRecover()
 	if count := len(m.items); count > 0 {
 		keys := make([]any, count)
 		i := 0
@@ -254,6 +262,7 @@ func (m *Memory) Keys() []any {
 func (m *Memory) List() []any {
 	m.Lock()
 	defer m.Unlock()
+	defer doRecover()
 	var val []any
 	if count := len(m.items); count > 0 {
 		val = make([]any, count)
@@ -269,8 +278,9 @@ func (m *Memory) List() []any {
 func (m *Memory) Range(callback func(any, any) bool) {
 	m.Lock()
 	defer m.Unlock()
+	defer doRecover()
 	for k, v := range m.items {
-		if callback != nil && !callback(k, v.value) {
+		if v.value != nil && callback != nil && !callback(k, v.value) {
 			return
 		}
 	}
