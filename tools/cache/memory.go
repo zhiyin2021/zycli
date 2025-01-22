@@ -236,7 +236,7 @@ func (m *Memory) Count(callback func(any, any) bool) int {
 	defer doRecover()
 	count := 0
 	for k, v := range m.items {
-		if v.value != nil && callback != nil && callback(k, v.value) {
+		if callback == nil || (v.value != nil && callback(k, v.value)) {
 			count++
 		}
 	}
@@ -284,4 +284,75 @@ func (m *Memory) Range(callback func(any, any) bool) {
 			return
 		}
 	}
+}
+
+var (
+	ctx, Stop = context.WithCancel(context.Background())
+	instance  = NewMemory(ctx)
+)
+
+func Get(key any) any {
+	return instance.Get(key)
+}
+
+func GetBy(check func(any) bool) any {
+	return instance.GetBy(check)
+}
+
+func GetOrStoreBySliding(key any, val any, expire time.Duration) (any, bool) {
+	return instance.GetOrStoreBySliding(key, val, expire)
+}
+
+func GetOrStore(key any, val any) (any, bool) {
+	return instance.GetOrStore(key, val)
+}
+
+func GetAndDel(key any) any {
+	return instance.GetAndDel(key)
+}
+
+// 获取缓存时自动延时
+func SetBySliding(key, val any, expire time.Duration) {
+	instance.SetBySliding(key, val, expire)
+}
+
+func Set(key, val any) {
+	instance.Set(key, val)
+}
+
+func SetByEmpty(key, val any) bool {
+	return instance.SetByEmpty(key, val)
+}
+func SetByExpire(key, val any, expire time.Duration) bool {
+	return instance.SetByExpire(key, val, expire)
+}
+func SetByExpireCallback(key, val any, expire time.Duration, f func(any)) bool {
+	return instance.SetByExpireCallback(key, val, expire, f)
+}
+func Del(key any) any {
+	return instance.Del(key)
+}
+
+func Increase(key any) error {
+	return instance.Increase(key)
+}
+
+func Decrease(key any) error {
+	return instance.Decrease(key)
+}
+
+func Count(callback func(any, any) bool) int {
+	return instance.Count(callback)
+}
+
+func Keys() []any {
+	return instance.Keys()
+}
+
+func List() []any {
+	return instance.List()
+}
+
+func Range(callback func(any, any) bool) {
+	instance.Range(callback)
 }
